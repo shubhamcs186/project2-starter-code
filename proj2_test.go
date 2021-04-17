@@ -37,10 +37,48 @@ func TestInit(t *testing.T) {
 		return
 	}
 	// t.Log() only produces output if you run with "go test -v"
-	t.Log("Got user", u)
+	//t.Log("Got user", u)
+	_ = u
 	// If you want to comment the line above,
 	// write _ = u here to make the compiler happy
 	// You probably want many more tests here.
+}
+
+
+func TestInitErrorOne(t *testing.T) {
+	clear()
+	t.Log("InitErrorOne test")
+
+	userlib.SetDebugStatus(true)
+
+	_, er := InitUser("alice", "fubar")
+	if er != nil {
+		t.Error("Failed to initialize user", er)
+		return
+	}
+	_, er = InitUser("alice", "ffff")
+	if er == nil {
+		t.Error("alice is duplicate and should error", er)
+		return
+	}
+}
+
+func TestInitErrorTwo(t *testing.T) {
+	clear()
+	t.Log("InitErrorTwo test")
+
+	userlib.SetDebugStatus(true)
+
+	_, er := InitUser("", "hi")
+	if er == nil {
+		t.Error("empty usernames are not allowed and should error", er)
+		return
+	}
+	_, er = InitUser("hi", "")
+	if er == nil {
+		t.Error("empty passwords are not allowed and should error", er)
+		return
+	}
 }
 
 func TestStorage(t *testing.T) {
