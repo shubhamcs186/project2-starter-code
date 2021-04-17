@@ -83,9 +83,9 @@ type User struct {
 	DsSecretKey userlib.DSSignKey
 	HmacKey []byte
 	SymmEncKey []byte
-	FileNameToMetaData map[[]byte]HeaderLocation
-	OwnedFilesToInvitations map[[]byte][]InvitationInformation
-	ReceivedFilesToInvitations map[[]byte]ReceivedFileInformation
+	FileNameToMetaData map[[64]byte]HeaderLocation
+	OwnedFilesToInvitations map[[64]byte][]InvitationInformation
+	ReceivedFilesToInvitations map[[64]byte]ReceivedFileInformation
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
 	// be public (start with a capital letter)
@@ -119,23 +119,35 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	if username == "" || password == "" {
 		return nil, errors.New(strings.ToTitle("Username and password can't be empty."))
 	}
-	pk, ok := userlib.KeystoreGet(string(userlib.Hash(username + "0")))
+	_, ok := userlib.KeystoreGet(string(userlib.Hash([]byte(username + "0"))))
 	if ok {
 		return nil, errors.New(strings.ToTitle("Username already exists."))
 	}
-	RsaPublicKey, userdata.PkeSecretKey, err := userlib.PKEKeyGen()
-	userdata.DsSecretKey, DsVerKey, err := userlib.DSKeyGen()
-	userlib.KeystoreSet(string(userlib.Hash(username + "0")), RsaPublicKey)
-	userlib.KeystoreSet(string(userlib.Hash(username + "1")), DsVerKey)
+	var RsaPublicKey userlib.PKEEncKey
+	//var err1 error
+	var DsVerKey userlib.DSVerifyKey
+	var ByteUserStruct []byte
+	var StructMac []byte
+	var UserID uuid.UUID
+	RsaPublicKey, userdata.PkeSecretKey, err = userlib.PKEKeyGen()
+	userdata.DsSecretKey, DsVerKey, err = userlib.DSKeyGen()
+	userlib.KeystoreSet(string(userlib.Hash([]byte(username + "0"))), RsaPublicKey)
+	userlib.KeystoreSet(string(userlib.Hash([]byte(username + "1"))), DsVerKey)
 	HmacAndEncKeys := userlib.Argon2Key([]byte(password), []byte(username), 32)
 	userdata.HmacKey = HmacAndEncKeys[:16]
 	userdata.SymmEncKey = HmacAndEncKeys[16:]
-	userlib.SymEnc(userdata.SymmEncKey, userlib.RandomBytes(16), )
-	userlib.DatastoreSet(uuid.FromBytes(hash(username)[:16]), json.Marshal(userdata))
-
+	ByteUserStruct, err = json.Marshal(userdata)
+	AmountToPad := 16 - (len(ByteUserStruct) % 16)
+	for i := 0; i < AmountToPad; i++ {
+		ByteUserStruct = append(ByteUserStruct, byte(AmountToPad))
+	}
+	StructEnc := userlib.SymEnc(userdata.SymmEncKey, userlib.RandomBytes(16), ByteUserStruct)
+	StructMac, err = userlib.HMACEval(userdata.HmacKey, StructEnc)
+	StructEnc = append(StructEnc, StructMac...)
+	UserID, err = uuid.FromBytes(userlib.Hash([]byte(username))[:16])
+	userlib.DatastoreSet(UserID, StructEnc)
 	//End of toy implementation
-
-	return &userdata, nil
+	return &userdata, err
 }
 
 // GetUser is documented at:
