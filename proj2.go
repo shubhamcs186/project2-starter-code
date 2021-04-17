@@ -133,7 +133,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userdata.DsSecretKey, DsVerKey, err = userlib.DSKeyGen()
 	userlib.KeystoreSet(string(userlib.Hash([]byte(username + "0"))), RsaPublicKey)
 	userlib.KeystoreSet(string(userlib.Hash([]byte(username + "1"))), DsVerKey)
-	HmacAndEncKeys := userlib.Argon2Key([]byte(password), []byte(username), 32)
+	HmacAndEncKeys := userlib.Argon2Key(userlib.Hash([]byte(password)), []byte(username), 32)
 	userdata.HmacKey = HmacAndEncKeys[:16]
 	userdata.SymmEncKey = HmacAndEncKeys[16:]
 	ByteUserStruct, err = json.Marshal(userdata)
@@ -143,7 +143,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	}
 	StructEnc := userlib.SymEnc(userdata.SymmEncKey, userlib.RandomBytes(16), ByteUserStruct)
 	StructMac, err = userlib.HMACEval(userdata.HmacKey, StructEnc)
-	StructEnc = append(StructEnc, StructMac...)
+	StructEnc = append(StructMac, StructEnc...)
 	UserID, err = uuid.FromBytes(userlib.Hash([]byte(username))[:16])
 	userlib.DatastoreSet(UserID, StructEnc)
 	//End of toy implementation
@@ -156,6 +156,26 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdataptr = &userdata
 
+	_, ok := userlib.KeystoreGet(string(userlib.Hash([]byte(username + "0"))))
+	if !ok {
+		return nil, errors.New(strings.ToTitle("Username doesn't exist."))
+	}
+	var UserID uuid.UUID
+	var SupposedHmac []byte
+	SupposedHmacAndEncKeys := userlib.Argon2Key(userlib.Hash([]byte(password)), []byte(username), 32) 
+	SupposedHmacKey := SupposedHmacAndEncKeys[:16]
+	SupposedEncKey := SupposedHmacAndEncKeys[16:]
+	UserID, err = uuid.FromBytes(userlib.Hash([]byte(username))[:16])
+	ActualHmacAndStructEnc, _ := userlib.DatastoreGet(UserID)
+	ActualHmac := ActualHmacAndStructEnc[:64]
+	SupposedHmac, err = userlib.HMACEval(SupposedHmacKey, ActualHmacAndStructEnc[64:])
+	if !userlib.HMACEqual(ActualHmac, SupposedHmac) {
+		return nil, errors.New(strings.ToTitle("User can't be authenticated."))
+	}
+	err = json.Unmarshal(userlib.SymDec(SupposedEncKey, ActualHmacAndStructEnc[64:]), userdataptr)
+	if userdataptr.HmacKey != SupposedHmacKey || userdataptr.SymmEncKey != SupposedEncKey {
+		return nil, errors.New(strings.ToTitle("User can't be authenticated."))
+	}
 	return userdataptr, nil
 }
 
