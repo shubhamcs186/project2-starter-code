@@ -162,6 +162,9 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	HmacAndEncKeys := userlib.Argon2Key(userlib.Hash([]byte(password)), []byte(username), 32)
 	userdata.HmacKey = HmacAndEncKeys[:16]
 	userdata.SymmEncKey = HmacAndEncKeys[16:]
+	userdata.FileNameToMetaData = make(map[string]*HeaderLocation)
+	userdata.OwnedFilesToInvitations = make(map[string][]*InvitationInformation)
+	userdata.ReceivedFilesToInvitations = make(map[string]*ReceivedFileInformation)
 	ByteUserStruct, err = json.Marshal(userdata)
 	if err != nil {
 		return nil, err
@@ -350,6 +353,8 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		userPKEKey, oook := userlib.KeystoreGet(string(userlib.Hash([]byte(userdata.Username + "0"))))
 		_ = oook
 		fileHeaderptr.OwnerEncrypted, err = userlib.PKEEnc(userPKEKey, []byte(userdata.Username))
+		fileHeaderptr.PageUUIDS = make([]uuid.UUID, 1)
+		fileHeaderptr.PagePrimaryKeys = make([][]byte, 1)
 		if err != nil {
 			return err
 		}
@@ -375,7 +380,11 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		return err
 	}
 	
-	//Encrypt, HMAC, and store data page.
+	//Pad, Encrypt, HMAC, and store data page.
+	AmountToPad := 16 - (len(BytesOfNewPageStruct) % 16)
+	for i := 0; i < AmountToPad; i++ {
+		BytesOfNewPageStruct = append(BytesOfNewPageStruct, byte(AmountToPad))
+	}
 	encryptedPage := userlib.SymEnc(derivedPageKeys[:16], userlib.RandomBytes(16), BytesOfNewPageStruct)
 	var newPageMac []byte
 	newPageMac, err = userlib.HMACEval(derivedPageKeys[16:32], encryptedPage)
@@ -394,6 +403,10 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 	derivedFileHeaderKeys, err = userlib.HashKDF(userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))].HeaderPrimaryKey, []byte("derivedfileheaderkeys"))
 	if err != nil {
 		return err
+	}
+	AmountToPad = 16 - (len(BytesOfFileHeaderStruct) % 16)
+	for i := 0; i < AmountToPad; i++ {
+		BytesOfFileHeaderStruct = append(BytesOfFileHeaderStruct, byte(AmountToPad))
 	}
 	encryptedFileHeader := userlib.SymEnc(derivedFileHeaderKeys[:16], userlib.RandomBytes(16), BytesOfFileHeaderStruct)
 	var fileHeaderMac []byte
