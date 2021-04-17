@@ -97,7 +97,7 @@ func TestGetUser(t *testing.T) {
 		t.Error("Failed to get user", err)
 		return
 	}
-	if user1 != user2 {
+	if !reflect.DeepEqual(user1, user2) {
 		t.Error("Failed to get same user", user1, user2)
 		return
 	}

@@ -83,9 +83,9 @@ type User struct {
 	DsSecretKey userlib.DSSignKey
 	HmacKey []byte
 	SymmEncKey []byte
-	FileNameToMetaData map[[64]byte]HeaderLocation
-	OwnedFilesToInvitations map[[64]byte][]InvitationInformation
-	ReceivedFilesToInvitations map[[64]byte]ReceivedFileInformation
+	FileNameToMetaData map[string]HeaderLocation
+	OwnedFilesToInvitations map[string][]InvitationInformation
+	ReceivedFilesToInvitations map[string]ReceivedFileInformation
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
 	// be public (start with a capital letter)
@@ -137,6 +137,9 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userdata.HmacKey = HmacAndEncKeys[:16]
 	userdata.SymmEncKey = HmacAndEncKeys[16:]
 	ByteUserStruct, err = json.Marshal(userdata)
+	if err != nil {
+		return nil, err
+	}
 	AmountToPad := 16 - (len(ByteUserStruct) % 16)
 	for i := 0; i < AmountToPad; i++ {
 		ByteUserStruct = append(ByteUserStruct, byte(AmountToPad))
@@ -166,13 +169,25 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	SupposedHmacKey := SupposedHmacAndEncKeys[:16]
 	SupposedEncKey := SupposedHmacAndEncKeys[16:]
 	UserID, err = uuid.FromBytes(userlib.Hash([]byte(username))[:16])
+	if err != nil {
+		return nil, err
+	}
 	ActualHmacAndStructEnc, _ := userlib.DatastoreGet(UserID)
 	ActualHmac := ActualHmacAndStructEnc[:64]
 	SupposedHmac, err = userlib.HMACEval(SupposedHmacKey, ActualHmacAndStructEnc[64:])
+	if err != nil {
+		return nil, err
+	}
 	if !userlib.HMACEqual(ActualHmac, SupposedHmac) {
 		return nil, errors.New(strings.ToTitle("User can't be authenticated."))
 	}
-	err = json.Unmarshal(userlib.SymDec(SupposedEncKey, ActualHmacAndStructEnc[64:]), userdataptr)
+	StructDecrypt := userlib.SymDec(SupposedEncKey, ActualHmacAndStructEnc[64:])
+	LastByte := StructDecrypt[len(StructDecrypt) - 1]
+	StructDecrypt = StructDecrypt[:(len(StructDecrypt) - int(LastByte))]
+	err = json.Unmarshal(StructDecrypt, userdataptr)
+	if err != nil {
+		return nil, err
+	}
 	hmacEq := true
 	for i := range userdataptr.HmacKey {
         if userdataptr.HmacKey[i] != SupposedHmacKey[i] {
