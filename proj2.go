@@ -265,11 +265,12 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 	var fileHeaderPrimaryKey []byte
 	var derivedFileHeaderKeys []byte
 	var fileHeader FileHeader
-	fileHeaderptr = &fileHeader
-	fileHeaderData, ok := userdata.FileNameToMetaData[string(userlib.Hash(filename))]
+	var fileHeaderptr = &fileHeader
+	fileHeaderData, ok := userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))]
 	//File exists
 	if ok {
-		fileInvitationInfo, okk := userdata.OwnedFilesToInvitations[string(userlib.Hash(filename))]
+		fileInvitationInfo, okk := userdata.OwnedFilesToInvitations[string(userlib.Hash([]byte(filename)))]
+		_ = fileInvitationInfo
 		//User is owner
 		if okk {
 			fileHeaderUUID = fileHeaderData.HeaderUuid
@@ -278,9 +279,12 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		} else {
 			
 			//Get information on invitation location and verify authenticity with Owner DS Public Key.
-			receivedFileInfo, okkk := userdata.ReceivedFilesToInvitations[string(userlib.Hash(filename))]
+			receivedFileInfo, okkk := userdata.ReceivedFilesToInvitations[string(userlib.Hash([]byte(filename)))]
+			_ = okkk
 			fileInvitation, okkkk := userlib.DatastoreGet(receivedFileInfo.RecievedToken)
-			OwnerKey, ook := userlib.DatastoreGet(userlib.Hash(fileInvitation.Owner + "1"))
+			_ = okkkk
+			OwnerKey, ook := userlib.KeystoreGet(string(userlib.Hash([]byte(userdata.ReceivedFilesToInvitations[string(userlib.Hash([]byte(filename)))].Owner + "1"))))
+			_ = ook
 			err = userlib.DSVerify(OwnerKey, fileInvitation[256:], fileInvitation[:256])
 			if err != nil {
 				return err
@@ -291,14 +295,14 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 			LastByte := InvitationStructDecrypt[len(InvitationStructDecrypt) - 1]
 			InvitationStructDecrypt = InvitationStructDecrypt[:(len(InvitationStructDecrypt) - int(LastByte))]
 			var invitationData Invitation
-			invitationdataptr = &invitationData
+			var invitationdataptr = &invitationData
 			err = json.Unmarshal(InvitationStructDecrypt, invitationdataptr)
 			if err != nil {
 				return err
 			}
 			
 			//Update hashmap of file header data as necessary.
-			if !reflect.DeepEqual(invitationdataptr.FileHeaderUUID, fileHeaderData.HeaderUuid) {
+			if invitationdataptr.FileHeaderUUID != fileHeaderData.HeaderUuid {
 				fileHeaderData.HeaderUuid = invitationData.FileHeaderUUID
 			}
 			for i := range invitationdataptr.FileHeaderPKey {
@@ -312,13 +316,15 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		
 		//Access File header and check for integrity.
 		fileHeaderStructAndMac, ookk := userlib.DatastoreGet(fileHeaderUUID)
+		_ = ookk
 		derivedFileHeaderKeys, err = userlib.HashKDF(fileHeaderPrimaryKey, []byte("derivedfileheaderkeys"))
 		ActualHeaderMac := fileHeaderStructAndMac[:64]
+		var SupposedHmac []byte
 		SupposedHmac, err = userlib.HMACEval(derivedFileHeaderKeys[16:32], fileHeaderStructAndMac[64:])
 		if err != nil {
 			return err
 		}
-		if !userlib.HMACEqual(ActualHeaderHmac, SupposedHmac) {
+		if !userlib.HMACEqual(ActualHeaderMac, SupposedHmac) {
 			return errors.New(strings.ToTitle("User can't be authenticated or integrity compromised."))
 		}
 		
@@ -335,15 +341,18 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		for i := 0; i < fileHeaderptr.FileLength; i++ {
 			userlib.DatastoreSet(fileHeaderptr.PageUUIDS[i], []byte(""))
 		}
-	} //File doesn't exist. 
-	else {
+	} else {
 		//Make new file header (uuid, primary key) and encrypt file header owner field.
 		newFileHeaderUUID := uuid.New()
 		newFileHeaderPrimaryKey := userlib.RandomBytes(16)
-		newHeaderLocation := HeaderLocation{newFileHeaderUUID, newFileHeaderPrimaryKey}
-		userdata.FileNameToMetaData[userlib.Hash(filename)] = newHeaderLocation
-		userPKEKey, oook := userdata.KeystoreGet(userlib.Hash(userdata.Username + "0"))
-		fileHeaderptr.OwnerEncrypted = userlib.PKEEnc(userPKEKey, userdata.Username)
+		newHeaderLocation := &HeaderLocation{newFileHeaderUUID, newFileHeaderPrimaryKey}
+		userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))] = newHeaderLocation
+		userPKEKey, oook := userlib.KeystoreGet(string(userlib.Hash([]byte(userdata.Username + "0"))))
+		_ = oook
+		fileHeaderptr.OwnerEncrypted, err = userlib.PKEEnc(userPKEKey, []byte(userdata.Username))
+		if err != nil {
+			return err
+		}
 	}
 	
 	//Make new data page (uuid, primary key) and update file header fields (file length, PageUUIDS, PagePrimaryKeys).
@@ -352,6 +361,7 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 	fileHeaderptr.FileLength = 1
 	fileHeaderptr.PageUUIDS[0] = newPageUUID
 	fileHeaderptr.PagePrimaryKeys[0] = newPagePrimaryKey
+	var derivedPageKeys []byte
 	derivedPageKeys, err = userlib.HashKDF(newPagePrimaryKey, []byte("derivedpagekeys"))
 	if err != nil {
 		return err
@@ -367,11 +377,12 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 	
 	//Encrypt, HMAC, and store data page.
 	encryptedPage := userlib.SymEnc(derivedPageKeys[:16], userlib.RandomBytes(16), BytesOfNewPageStruct)
+	var newPageMac []byte
 	newPageMac, err = userlib.HMACEval(derivedPageKeys[16:32], encryptedPage)
 	if err != nil {
 		return err
 	}
-	encryptedAndMacPage = append(newPageMac, encryptedPage...)
+	encryptedAndMacPage := append(newPageMac, encryptedPage...)
 	userlib.DatastoreSet(newPageUUID, encryptedAndMacPage)
 	
 	//Encrypt, HMAC, and store file header.
@@ -380,17 +391,18 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 	if err != nil {
 		return err
 	}
-	derivedFileHeaderKeys, err = userlib.HashKDF(userdata.FileNameToMetaData[userlib.Hash(filename)].HeaderPrimaryKey, []byte("derivedfileheaderkeys"))
+	derivedFileHeaderKeys, err = userlib.HashKDF(userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))].HeaderPrimaryKey, []byte("derivedfileheaderkeys"))
 	if err != nil {
 		return err
 	}
 	encryptedFileHeader := userlib.SymEnc(derivedFileHeaderKeys[:16], userlib.RandomBytes(16), BytesOfFileHeaderStruct)
+	var fileHeaderMac []byte
 	fileHeaderMac, err = userlib.HMACEval(derivedFileHeaderKeys[16:32], encryptedFileHeader)
 	if err != nil {
 		return err
 	}
-	encryptedAndMacFileHeader = append(fileHeaderMac, encryptedFileHeader...)
-	userlib.DatastoreSet(userdata.FileNameToMetaData[userlib.Hash(filename)].HeaderUuid, encryptedAndMacFileHeader)
+	encryptedAndMacFileHeader := append(fileHeaderMac, encryptedFileHeader...)
+	userlib.DatastoreSet(userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))].HeaderUuid, encryptedAndMacFileHeader)
 	return
 }
 
