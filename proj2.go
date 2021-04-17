@@ -79,11 +79,35 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 // User is the structure definition for a user record.
 type User struct {
 	Username string
-
+	PkeSecretKey userlib.PKEDecKey
+	DsSecretKey userlib.DSSignKey
+	HmacKey []byte
+	SymmEncKey []byte
+	FileNameToMetaData map[[]byte]HeaderLocation
+	OwnedFilesToInvitations map[[]byte][]InvitationInformation
+	ReceivedFilesToInvitations map[[]byte]ReceivedFileInformation
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
 	// be public (start with a capital letter)
 }
+
+type HeaderLocation struct {
+	HeaderUuid uuid.UUID
+	HeaderPrimaryKey []byte
+}
+
+type InvitationInformation struct {
+	SentToken uuid.UUID
+	InvitationEncryptionKey []byte
+	Recipient string
+}
+
+type ReceivedFileInformation struct {
+	RecievedToken uuid.UUID
+	InvitationEncryptionKey []byte
+	Owner string
+}
+
 
 // InitUser will be called a single time to initialize a new user.
 func InitUser(username string, password string) (userdataptr *User, err error) {
@@ -92,6 +116,23 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	//TODO: This is a toy implementation.
 	userdata.Username = username
+	if username == "" || password == "" {
+		return nil, errors.New(strings.ToTitle("Username and password can't be empty."))
+	}
+	pk, ok := userlib.KeystoreGet(string(userlib.Hash(username + "0")))
+	if ok {
+		return nil, errors.New(strings.ToTitle("Username already exists."))
+	}
+	RsaPublicKey, userdata.PkeSecretKey, err := userlib.PKEKeyGen()
+	userdata.DsSecretKey, DsVerKey, err := userlib.DSKeyGen()
+	userlib.KeystoreSet(string(userlib.Hash(username + "0")), RsaPublicKey)
+	userlib.KeystoreSet(string(userlib.Hash(username + "1")), DsVerKey)
+	HmacAndEncKeys := userlib.Argon2Key([]byte(password), []byte(username), 32)
+	userdata.HmacKey = HmacAndEncKeys[:16]
+	userdata.SymmEncKey = HmacAndEncKeys[16:]
+	userlib.SymEnc(userdata.SymmEncKey, userlib.RandomBytes(16), )
+	userlib.DatastoreSet(uuid.FromBytes(hash(username)[:16]), json.Marshal(userdata))
+
 	//End of toy implementation
 
 	return &userdata, nil
