@@ -116,6 +116,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	//TODO: This is a toy implementation.
 	userdata.Username = username
+	//Error Checks
 	if username == "" || password == "" {
 		return nil, errors.New(strings.ToTitle("Username and password can't be empty."))
 	}
@@ -123,8 +124,9 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	if ok {
 		return nil, errors.New(strings.ToTitle("Username already exists."))
 	}
+
+	//Generate and store user public keys
 	var RsaPublicKey userlib.PKEEncKey
-	//var err1 error
 	var DsVerKey userlib.DSVerifyKey
 	var ByteUserStruct []byte
 	var StructMac []byte
@@ -139,6 +141,8 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	}
 	userlib.KeystoreSet(string(userlib.Hash([]byte(username + "0"))), RsaPublicKey)
 	userlib.KeystoreSet(string(userlib.Hash([]byte(username + "1"))), DsVerKey)
+
+	//Generate user HMAC and Encrypt keys and marshal user struct
 	HmacAndEncKeys := userlib.Argon2Key(userlib.Hash([]byte(password)), []byte(username), 32)
 	userdata.HmacKey = HmacAndEncKeys[:16]
 	userdata.SymmEncKey = HmacAndEncKeys[16:]
@@ -146,6 +150,8 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	if err != nil {
 		return nil, err
 	}
+
+	//Pad, Encrypt, and HMAC
 	AmountToPad := 16 - (len(ByteUserStruct) % 16)
 	for i := 0; i < AmountToPad; i++ {
 		ByteUserStruct = append(ByteUserStruct, byte(AmountToPad))
@@ -156,6 +162,8 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 	StructEnc = append(StructMac, StructEnc...)
+
+	//Generate UUID to store user and store
 	UserID, err = uuid.FromBytes(userlib.Hash([]byte(username))[:16])
 	if err != nil {
 		return nil, err
@@ -171,10 +179,13 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdataptr = &userdata
 
+	//Error checks
 	_, ok := userlib.KeystoreGet(string(userlib.Hash([]byte(username + "0"))))
 	if !ok {
 		return nil, errors.New(strings.ToTitle("Username doesn't exist."))
 	}
+
+	//Generate HMAC, Encrypt, UUID from input username & pwd
 	var UserID uuid.UUID
 	var SupposedHmac []byte
 	SupposedHmacAndEncKeys := userlib.Argon2Key(userlib.Hash([]byte(password)), []byte(username), 32) 
@@ -184,6 +195,8 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	if err != nil {
 		return nil, err
 	}
+
+	//Pull actual HMAC and verify integrity/authenticate
 	ActualHmacAndStructEnc, _ := userlib.DatastoreGet(UserID)
 	ActualHmac := ActualHmacAndStructEnc[:64]
 	SupposedHmac, err = userlib.HMACEval(SupposedHmacKey, ActualHmacAndStructEnc[64:])
@@ -193,6 +206,8 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	if !userlib.HMACEqual(ActualHmac, SupposedHmac) {
 		return nil, errors.New(strings.ToTitle("User can't be authenticated or integrity compromised."))
 	}
+
+	//Decrypt, depad, and unmarshal User struct
 	StructDecrypt := userlib.SymDec(SupposedEncKey, ActualHmacAndStructEnc[64:])
 	LastByte := StructDecrypt[len(StructDecrypt) - 1]
 	StructDecrypt = StructDecrypt[:(len(StructDecrypt) - int(LastByte))]
@@ -200,6 +215,8 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	if err != nil {
 		return nil, err
 	}
+
+	//Authenticate user by checking if generated keys same as actual keys
 	hmacEq := true
 	for i := range userdataptr.HmacKey {
         if userdataptr.HmacKey[i] != SupposedHmacKey[i] {
