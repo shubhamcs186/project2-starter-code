@@ -130,7 +130,13 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	var StructMac []byte
 	var UserID uuid.UUID
 	RsaPublicKey, userdata.PkeSecretKey, err = userlib.PKEKeyGen()
+	if err != nil {
+		return nil, err
+	}
 	userdata.DsSecretKey, DsVerKey, err = userlib.DSKeyGen()
+	if err != nil {
+		return nil, err
+	}
 	userlib.KeystoreSet(string(userlib.Hash([]byte(username + "0"))), RsaPublicKey)
 	userlib.KeystoreSet(string(userlib.Hash([]byte(username + "1"))), DsVerKey)
 	HmacAndEncKeys := userlib.Argon2Key(userlib.Hash([]byte(password)), []byte(username), 32)
@@ -146,8 +152,14 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	}
 	StructEnc := userlib.SymEnc(userdata.SymmEncKey, userlib.RandomBytes(16), ByteUserStruct)
 	StructMac, err = userlib.HMACEval(userdata.HmacKey, StructEnc)
+	if err != nil {
+		return nil, err
+	}
 	StructEnc = append(StructMac, StructEnc...)
 	UserID, err = uuid.FromBytes(userlib.Hash([]byte(username))[:16])
+	if err != nil {
+		return nil, err
+	}
 	userlib.DatastoreSet(UserID, StructEnc)
 	//End of toy implementation
 	return &userdata, err
@@ -179,7 +191,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 	if !userlib.HMACEqual(ActualHmac, SupposedHmac) {
-		return nil, errors.New(strings.ToTitle("User can't be authenticated."))
+		return nil, errors.New(strings.ToTitle("User can't be authenticated or integrity compromised."))
 	}
 	StructDecrypt := userlib.SymDec(SupposedEncKey, ActualHmacAndStructEnc[64:])
 	LastByte := StructDecrypt[len(StructDecrypt) - 1]

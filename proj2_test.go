@@ -122,6 +122,25 @@ func TestGetUserError1(t *testing.T) {
 	}
 }
 
+func TestGetUserError2(t *testing.T) {
+	clear()
+	t.Log("GetUserError2 test")
+
+	userlib.SetDebugStatus(true)
+
+	_, er := InitUser("alice", "fubar")
+	if er != nil {
+		t.Error("Failed to initalize user", er)
+		return
+	}
+	u, err := GetUser("alice", "goobar")
+	_ = u
+	if err == nil {
+		t.Error("alice log in is unathenticated and should error", err)
+		return
+	}
+}
+
 func TestStorage(t *testing.T) {
 	clear()
 	u, err := InitUser("alice", "fubar")
