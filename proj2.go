@@ -173,7 +173,19 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		return nil, errors.New(strings.ToTitle("User can't be authenticated."))
 	}
 	err = json.Unmarshal(userlib.SymDec(SupposedEncKey, ActualHmacAndStructEnc[64:]), userdataptr)
-	if userdataptr.HmacKey != SupposedHmacKey || userdataptr.SymmEncKey != SupposedEncKey {
+	hmacEq := true
+	for i := range userdataptr.HmacKey {
+        if userdataptr.HmacKey[i] != SupposedHmacKey[i] {
+            hmacEq = false
+        }
+    }
+	symmEq := true
+	for i := range userdataptr.SymmEncKey {
+        if userdataptr.SymmEncKey[i] != SupposedEncKey[i] {
+            symmEq = false
+        }
+    }
+	if !hmacEq || !symmEq {
 		return nil, errors.New(strings.ToTitle("User can't be authenticated."))
 	}
 	return userdataptr, nil

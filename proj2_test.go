@@ -81,6 +81,47 @@ func TestInitErrorTwo(t *testing.T) {
 	}
 }
 
+func TestGetUser(t *testing.T) {
+	clear()
+	t.Log("GetUser test")
+
+	userlib.SetDebugStatus(true)
+
+	user1, er := InitUser("alice", "fubar")
+	if er != nil {
+		t.Error("Failed to initialize user", er)
+		return
+	}
+	user2, err := GetUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to get user", err)
+		return
+	}
+	if user1 != user2 {
+		t.Error("Failed to get same user", user1, user2)
+		return
+	}
+}
+
+func TestGetUserError1(t *testing.T) {
+	clear()
+	t.Log("GetUserError test")
+
+	userlib.SetDebugStatus(true)
+
+	_, er := InitUser("alice", "fubar")
+	if er != nil {
+		t.Error("Failed to initialize user", er)
+		return
+	}
+	u, err := GetUser("bob", "fubar")
+	_ = u
+	if err == nil {
+		t.Error("bob doesn't exist and should error", err)
+		return
+	}
+}
+
 func TestStorage(t *testing.T) {
 	clear()
 	u, err := InitUser("alice", "fubar")
