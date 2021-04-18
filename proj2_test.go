@@ -141,6 +141,123 @@ func TestGetUserError2(t *testing.T) {
 	}
 }
 
+func TestGetUserError3(t *testing.T) {
+	clear()
+	t.Log("GetUserError3 test")
+
+	userlib.SetDebugStatus(true)
+
+	u, er := InitUser("alice", "fubar")
+	if er != nil {
+		t.Error("Failed to initalize user", er)
+		return
+	}
+
+	UserID, _:= uuid.FromBytes(userlib.Hash([]byte(u.Username))[:16])
+	userlib.DatastoreSet(UserID, []byte("garbage"))
+
+	u, err := GetUser("alice", "fubar")
+	if err == nil {
+		t.Error("alice user corrupted and should error", err)
+	}
+}
+
+func TestStoreFile1(t *testing.T) {
+	clear()
+	t.Log("StoreFile test")
+
+	// You can set this to false!
+	userlib.SetDebugStatus(true)
+
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	f1 := []byte("file1")
+	err = u.StoreFile("file1", f1)
+	if err != nil {
+		t.Error("Failed to store file", err)
+	}
+
+	f2 := []byte("file2")
+	err = u.StoreFile("file2", f2)
+	if err != nil {
+		t.Error("Failed to store file", err)
+	}
+
+	f3 := []byte("file1New")
+	err = u.StoreFile("file1", f3)
+	if err != nil {
+		t.Error("Failed to store file", err)
+	}
+
+	f4 := []byte("file2New")
+	err = u.StoreFile("file2", f4)
+	if err != nil {
+		t.Error("Failed to store file", err)
+	}
+}
+
+func TestStoreFileError(t *testing.T) {
+	clear()
+	t.Log("StoreFileError test")
+
+	// You can set this to false!
+	userlib.SetDebugStatus(true)
+
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	f1 := []byte("file1")
+	err = u.StoreFile("file1", f1)
+	if err != nil {
+		t.Error("Failed to store file", err)
+	}
+
+	fileHeadLocation := u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
+	userlib.DatastoreSet(fileHeadLocation.HeaderUuid, []byte("garbage"))
+
+	f3 := []byte("file1New")
+	err = u.StoreFile("file1", f3)
+	if err == nil {
+		t.Error("File header has been corrupted. Should error", err)
+	}
+}
+
+func TestStoreFileError2(t *testing.T) {
+	clear()
+	t.Log("StoreFileError2 test")
+
+	// You can set this to false!
+	userlib.SetDebugStatus(true)
+
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	f1 := []byte("file1")
+	err = u.StoreFile("file1", f1)
+	if err != nil {
+		t.Error("Failed to store file", err)
+	}
+
+	fileHeadLocation := u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
+	userlib.DatastoreSet(fileHeadLocation.HeaderUuid, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+
+	f3 := []byte("file1New")
+	err = u.StoreFile("file1", f3)
+	if err == nil {
+		t.Error("File header has been corrupted. Should error", err)
+	}
+}
+
 func TestStorage(t *testing.T) {
 	clear()
 	u, err := InitUser("alice", "fubar")
