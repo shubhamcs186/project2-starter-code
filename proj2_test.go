@@ -519,19 +519,23 @@ func TestSpecExample1 (t *testing.T) {
 	// f2 also with name "filename".
 	alice_session_1.StoreFile("filename", f1)
 	bob_session_1.StoreFile("filename", f2)
+	//t.Error((len((*(bob_session_1.FileNameToMetaData)))))
+	bob_session_1.StoreFile("filename2", f2)
+	//t.Error((len((*(bob_session_1.FileNameToMetaData)))))
 
 	// Alice and Bob each confirm that they can load the file they previously
 	// stored and that the file contents is the same.
 
 	f1_loaded, _ := alice_session_1.LoadFile("filename")
 	f2_loaded, _ := bob_session_1.LoadFile("filename")
+	//t.Error((len((*(bob_session_1.FileNameToMetaData)))))
 
 	if !reflect.DeepEqual(f1, f1_loaded) {
 		t.Error("file contents are different.", f1, f1_loaded)
 		return
 	}
 	if !reflect.DeepEqual(f2, f2_loaded) {
-		t.Error("file contents are different.", f1, f1_loaded)
+		t.Error("file contents are different.", f2, f2_loaded)
 		return
 	}
 
@@ -545,6 +549,7 @@ func TestSpecExample1 (t *testing.T) {
 
 	// Bob creates a second user session by authenticating to the client again.
 	bob_session_3, err := GetUser("user_bob", "password2")
+	_ = bob_session_3
 	if err != nil {
 		t.Error("error", err)
 		return
@@ -555,30 +560,62 @@ func TestSpecExample1 (t *testing.T) {
 		return
 	}
 
-	t.Error(bob_session_1)
-	t.Error(bob_session_2)
-	t.Error(bob_session_3)
+	bob_s2, err := bob_session_2.LoadFile("filename")
+	//t.Error((len((*(bob_session_1.FileNameToMetaData)))))
+	if err != nil || !reflect.DeepEqual(bob_s2, f2) {
+		t.Error("s2 cannot load s1 file", err)
+	}
+	bob_s2, err = bob_session_2.LoadFile("filename2")
+	//t.Error((len((*(bob_session_1.FileNameToMetaData)))))
+	if err != nil || !reflect.DeepEqual(bob_s2, f2) {
+		t.Error("s2 cannot load s1 file", err)
+	}
+	//t.Error(bob_session_1)
+	//t.Error(bob_session_2)
+	//t.Error(bob_session_3)
+	// t.Error((len((*(bob_session_1.FileNameToMetaData)))))
+	// t.Error((len((*(bob_session_2.FileNameToMetaData)))))
+	// t.Error((len((*(bob_session_3.FileNameToMetaData)))))
+
+	// for key, value := range (*(bob_session_1.FileNameToMetaData)) {
+	// 	t.Error("Key:", key, "Value:", value)
+	// }
+	// for key, value := range (*(bob_session_2.FileNameToMetaData)) {
+	// 	t.Error("Key:", key, "Value:", value)
+	// }
+	// for key, value := range (*(bob_session_3.FileNameToMetaData)) {
+	// 	t.Error("Key:", key, "Value:", value)
+	// }
 
 	// Bob stores byte slice f2 with name "newfile" using his second user
 	// session.
 	bob_session_2.StoreFile("newfile", f2)
+	// t.Error((len((*(bob_session_1.FileNameToMetaData)))))
+	// t.Error((len((*(bob_session_2.FileNameToMetaData)))))
+	// t.Error((len((*(bob_session_3.FileNameToMetaData)))))
+
 
 	// Bob loads "newfile" using his first user session. Notice that Bob does
 	// not need to reauthenticate. File changes must be available to all active
 	// sessions for a given user.
 
 	f2_newfile, err := bob_session_1.LoadFile("newfile")
-	if err != nil {
+	if err != nil || !reflect.DeepEqual(f2_newfile, f2) {
 		t.Error("error", err)
 	}
+	//t.Error((len((*(bob_session_1.FileNameToMetaData)))))
+	
+	// f2_newfile, err = bob_session_2.LoadFile("newfile")
+	// if err != nil {
+	// 	t.Error("error", err)
+	// }
 
-	f2_newfile, err = bob_session_2.LoadFile("newfile")
-	if err != nil {
-		t.Error("error", err)
-	}
-
+	// if reflect.DeepEqual(f2, f2_newfile) {
+	// 	t.Error("f2 and f2_newfile are equal.")
+	// }
+	
 	f2_newfile, err = bob_session_3.LoadFile("newfile")
-	if err != nil {
+	if err != nil || !reflect.DeepEqual(f2_newfile, f2) {
 		t.Error("error", err)
 	}
 
