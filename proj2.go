@@ -359,6 +359,8 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		//Clear all existing pages.
 		for i := 0; i < fileHeaderptr.FileLength; i++ {
 			userlib.DatastoreSet(fileHeaderptr.PageUUIDS[i], []byte(""))
+			//Erase PagePrimaryKeys
+			fileHeaderptr.PagePrimaryKeys[i] = []byte("")
 		}
 	//File doesn't exit (new file created)
 	} else {
@@ -540,8 +542,13 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	//Hash page's primarykey to derive page MAC and Encrypt keys
 	newPageUUID := uuid.New()
 	newPagePrimaryKey := userlib.RandomBytes(16)
-	fileHeaderptr.PageUUIDS = append(fileHeaderptr.PageUUIDS, newPageUUID)
-	fileHeaderptr.PagePrimaryKeys = append(fileHeaderptr.PagePrimaryKeys, newPagePrimaryKey)
+	if fileHeaderptr.FileLength == len(fileHeaderptr.PageUUIDS) {
+		fileHeaderptr.PageUUIDS = append(fileHeaderptr.PageUUIDS, newPageUUID)
+		fileHeaderptr.PagePrimaryKeys = append(fileHeaderptr.PagePrimaryKeys, newPagePrimaryKey)
+	} else {
+		fileHeaderptr.PageUUIDS[fileHeaderptr.FileLength] = newPageUUID
+		fileHeaderptr.PagePrimaryKeys[fileHeaderptr.FileLength] = newPagePrimaryKey
+	}
 	fileHeaderptr.FileLength = fileHeaderptr.FileLength + 1
 	var derivedPageKeys []byte
 	derivedPageKeys, err = userlib.HashKDF(newPagePrimaryKey, []byte("derivedpagekeys"))
@@ -602,15 +609,132 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 func (userdata *User) LoadFile(filename string) (dataBytes []byte, err error) {
 
 	//TODO: This is a toy implementation.
-	storageKey, _ := uuid.FromBytes([]byte(filename + userdata.Username)[:16])
-	dataJSON, ok := userlib.DatastoreGet(storageKey)
-	if !ok {
-		return nil, errors.New(strings.ToTitle("File not found!"))
-	}
-	json.Unmarshal(dataJSON, &dataBytes)
-	return dataBytes, nil
+	// storageKey, _ := uuid.FromBytes([]byte(filename + userdata.Username)[:16])
+	// dataJSON, ok := userlib.DatastoreGet(storageKey)
+	// if !ok {
+	// 	return nil, errors.New(strings.ToTitle("File not found!"))
+	// }
+	// json.Unmarshal(dataJSON, &dataBytes)
+	// return dataBytes, nil
 	//End of toy implementation
 
+	var fileHeaderUUID userlib.UUID
+	var fileHeaderPrimaryKey []byte
+	var derivedFileHeaderKeys []byte
+	var fileHeader FileHeader
+	var fileHeaderptr = &fileHeader
+	
+	//Error check: Get File header UUID and PrimaryKey from user's 1st hashmap (if exists)
+	fileHeaderData, ok := userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))]
+	if !ok {
+		return nil, errors.New(strings.ToTitle("User doesn't have file"))
+	}
+
+	fileInvitationInfo, okk := userdata.OwnedFilesToInvitations[string(userlib.Hash([]byte(filename)))]
+	_ = fileInvitationInfo
+	//User is owner
+	if okk {
+		fileHeaderUUID = fileHeaderData.HeaderUuid
+		fileHeaderPrimaryKey = fileHeaderData.HeaderPrimaryKey
+	//User is shared
+	} else {
+		//Get invitation via location and verify authenticity with Owner DS Public Key.
+		receivedFileInfo, okkk := userdata.ReceivedFilesToInvitations[string(userlib.Hash([]byte(filename)))]
+		_ = okkk
+		fileInvitation, okkkk := userlib.DatastoreGet(receivedFileInfo.RecievedToken)
+		_ = okkkk
+		OwnerKey, ook := userlib.KeystoreGet(string(userlib.Hash([]byte(userdata.ReceivedFilesToInvitations[string(userlib.Hash([]byte(filename)))].Owner + "1"))))
+		_ = ook
+
+		//length Check
+		if len(fileInvitation) < 256 {
+			return nil, errors.New(strings.ToTitle("Integrity compromised."))
+		}
+
+		err = userlib.DSVerify(OwnerKey, fileInvitation[256:], fileInvitation[:256])
+		if err != nil {
+			return nil, err
+		}
+
+		//Decrypt (using invitation key (only 1)), depad, and unmarshal invitation.
+		InvitationStructDecrypt := userlib.SymDec(receivedFileInfo.InvitationEncryptionKey, fileInvitation[256:])
+		LastByte := InvitationStructDecrypt[len(InvitationStructDecrypt) - 1]
+		InvitationStructDecrypt = InvitationStructDecrypt[:(len(InvitationStructDecrypt) - int(LastByte))]
+		var invitationData Invitation
+		var invitationdataptr = &invitationData
+		err = json.Unmarshal(InvitationStructDecrypt, invitationdataptr)
+		if err != nil {
+			return nil, err
+		}
+		
+		//Update hashmap of file header UUID + PrimaryKey with invitation info as necessary. (if recent revoking)
+		if invitationdataptr.FileHeaderUUID != fileHeaderData.HeaderUuid {
+			fileHeaderData.HeaderUuid = invitationData.FileHeaderUUID
+		}
+		for i := range invitationdataptr.FileHeaderPKey {
+			if invitationdataptr.FileHeaderPKey[i] != fileHeaderData.HeaderPrimaryKey[i] {
+				fileHeaderData.HeaderPrimaryKey[i] = invitationdataptr.FileHeaderPKey[i]
+			}
+		}
+		fileHeaderUUID = fileHeaderData.HeaderUuid
+		fileHeaderPrimaryKey = fileHeaderData.HeaderPrimaryKey
+	}
+	//Both owner and shared
+	//Access Fileheader and check for integrity by deriving file header HMAC and Encrypt keys from PrimaryKey. -> length check too
+	fileHeaderStructAndMac, ookk := userlib.DatastoreGet(fileHeaderUUID)
+	_ = ookk
+	derivedFileHeaderKeys, err = userlib.HashKDF(fileHeaderPrimaryKey, []byte("derivedfileheaderkeys"))
+
+	if len(fileHeaderStructAndMac) < 64 {
+		return nil, errors.New(strings.ToTitle("Integrity compromised."))
+	}
+
+	ActualHeaderMac := fileHeaderStructAndMac[:64]
+	var SupposedHmac []byte
+	SupposedHmac, err = userlib.HMACEval(derivedFileHeaderKeys[16:32], fileHeaderStructAndMac[64:])
+	if err != nil {
+		return nil, err
+	}
+	if !userlib.HMACEqual(ActualHeaderMac, SupposedHmac) {
+		return nil, errors.New(strings.ToTitle("User can't be authenticated or integrity compromised."))
+	}
+
+	//Decrypt, depad, and unmarshal fileheader.
+	FileHeaderStructDecrypt := userlib.SymDec(derivedFileHeaderKeys[:16], fileHeaderStructAndMac[64:])
+	LastByte := FileHeaderStructDecrypt[len(FileHeaderStructDecrypt) - 1]
+	FileHeaderStructDecrypt = FileHeaderStructDecrypt[:(len(FileHeaderStructDecrypt) - int(LastByte))]
+	err = json.Unmarshal(FileHeaderStructDecrypt, fileHeaderptr)
+	if err != nil {
+		return nil, err
+	}
+	var page FileDataPage
+	pageptr := &page
+	var derivedPageKeys []byte
+	for i := 0; i < fileHeaderptr.FileLength; i++ {
+		pageStructAndMac, oookk := userlib.DatastoreGet(fileHeaderptr.PageUUIDS[i])
+		_ = oookk
+		derivedPageKeys, err = userlib.HashKDF(fileHeaderptr.PagePrimaryKeys[i], []byte("derivedpagekeys"))
+		if len(pageStructAndMac) < 64 {
+			return nil, errors.New(strings.ToTitle("Integrity compromised."))
+		}
+		ActualPageMac := pageStructAndMac[:64]
+		SupposedHmac, err = userlib.HMACEval(derivedPageKeys[16:32], pageStructAndMac[64:])
+		if err != nil {
+			return nil, err
+		}
+		if !userlib.HMACEqual(ActualPageMac, SupposedHmac) {
+			return nil, errors.New(strings.ToTitle("User can't be authenticated or integrity compromised."))
+		}
+		//Decrypt, depad, and unmarshal data page.
+		PageStructDecrypt := userlib.SymDec(derivedPageKeys[:16], pageStructAndMac[64:])
+		LastByte = PageStructDecrypt[len(PageStructDecrypt) - 1]
+		PageStructDecrypt = PageStructDecrypt[:(len(PageStructDecrypt) - int(LastByte))]
+		err = json.Unmarshal(PageStructDecrypt, pageptr)
+		if err != nil {
+			return nil, err
+		}
+		dataBytes = append(dataBytes, []byte(pageptr.FileData)...)
+	}
 	return
 }
 
