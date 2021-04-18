@@ -209,6 +209,13 @@ func TestStoreFileError(t *testing.T) {
 		t.Error("Failed to initialize user", err)
 		return
 	}
+
+	ds := userlib.DatastoreGetMap()
+	ds_orig := make(map[uuid.UUID][]byte)
+	for k, v := range ds {
+		ds_orig[k] = v
+	}
+
 	f1 := []byte("file1")
 	err = u.StoreFile("file1", f1)
 	if err != nil {
@@ -216,8 +223,14 @@ func TestStoreFileError(t *testing.T) {
 		return
 	}
 
-	fileHeadLocation := u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
-	userlib.DatastoreSet(fileHeadLocation.HeaderUuid, []byte("garbage"))
+	ds = userlib.DatastoreGetMap()
+	changedElem := uuid.New()
+	for k, _ := range ds {
+		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
+			changedElem = k
+		}
+	}
+	userlib.DatastoreSet(changedElem, []byte("garbage"))
 
 	f3 := []byte("file1New")
 	err = u.StoreFile("file1", f3)
@@ -238,6 +251,13 @@ func TestStoreFileError2(t *testing.T) {
 		t.Error("Failed to initialize user", err)
 		return
 	}
+
+	ds := userlib.DatastoreGetMap()
+	ds_orig := make(map[uuid.UUID][]byte)
+	for k, v := range ds {
+		ds_orig[k] = v
+	}
+
 	f1 := []byte("file1")
 	err = u.StoreFile("file1", f1)
 	if err != nil {
@@ -245,8 +265,14 @@ func TestStoreFileError2(t *testing.T) {
 		return
 	}
 
-	fileHeadLocation := u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
-	userlib.DatastoreSet(fileHeadLocation.HeaderUuid, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+	ds = userlib.DatastoreGetMap()
+	changedElem := uuid.New()
+	for k, _ := range ds {
+		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
+			changedElem = k
+		}
+	}
+	userlib.DatastoreSet(changedElem, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
 
 	f3 := []byte("file1New")
 	err = u.StoreFile("file1", f3)
@@ -387,6 +413,12 @@ func TestAppendFileError2(t *testing.T) {
 		t.Error("Failed to initialize user", err)
 		return
 	}
+	ds := userlib.DatastoreGetMap()
+	ds_orig := make(map[uuid.UUID][]byte)
+	for k, v := range ds {
+		ds_orig[k] = v
+	}
+
 	f1 := []byte("file1")
 	err = u.StoreFile("file1", f1)
 	if err != nil {
@@ -394,8 +426,14 @@ func TestAppendFileError2(t *testing.T) {
 		return
 	}
 
-	fileHeadLocation := u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
-	userlib.DatastoreSet(fileHeadLocation.HeaderUuid, []byte("garbage"))
+	ds = userlib.DatastoreGetMap()
+	changedElem := uuid.New()
+	for k, _ := range ds {
+		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
+			changedElem = k
+		}
+	}
+	userlib.DatastoreSet(changedElem, []byte("garbage"))
 
 	f3 := []byte("file1New")
 	err = u.AppendFile("file1", f3)
@@ -416,6 +454,12 @@ func TestAppendFileError3(t *testing.T) {
 		t.Error("Failed to initialize user", err)
 		return
 	}
+	ds := userlib.DatastoreGetMap()
+	ds_orig := make(map[uuid.UUID][]byte)
+	for k, v := range ds {
+		ds_orig[k] = v
+	}
+
 	f1 := []byte("file1")
 	err = u.StoreFile("file1", f1)
 	if err != nil {
@@ -423,8 +467,14 @@ func TestAppendFileError3(t *testing.T) {
 		return
 	}
 
-	fileHeadLocation := u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
-	userlib.DatastoreSet(fileHeadLocation.HeaderUuid, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+	ds = userlib.DatastoreGetMap()
+	changedElem := uuid.New()
+	for k, _ := range ds {
+		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
+			changedElem = k
+		}
+	}
+	userlib.DatastoreSet(changedElem, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
 
 	f3 := []byte("file1New")
 	err = u.AppendFile("file1", f3)
