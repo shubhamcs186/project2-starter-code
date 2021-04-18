@@ -506,6 +506,88 @@ func TestStorage(t *testing.T) {
 	}
 }
 
+func TestSpecExample1 (t *testing.T) {
+	clear() 
+	f1 := []byte("content")
+	f2 := []byte("different content")
+
+	// Alice and Bob each start a users session by authenticating to the client.
+	alice_session_1, _ := InitUser("user_alice", "password1")
+	bob_session_1, _ := InitUser("user_bob", "password2")
+
+	// Alice stores byte slice f1 with name "filename" and Bob stores byte slice
+	// f2 also with name "filename".
+	alice_session_1.StoreFile("filename", f1)
+	bob_session_1.StoreFile("filename", f2)
+
+	// Alice and Bob each confirm that they can load the file they previously
+	// stored and that the file contents is the same.
+
+	f1_loaded, _ := alice_session_1.LoadFile("filename")
+	f2_loaded, _ := bob_session_1.LoadFile("filename")
+
+	if !reflect.DeepEqual(f1, f1_loaded) {
+		t.Error("file contents are different.", f1, f1_loaded)
+		return
+	}
+	if !reflect.DeepEqual(f2, f2_loaded) {
+		t.Error("file contents are different.", f1, f1_loaded)
+		return
+	}
+
+	// Alice gets an error when trying to load a file that does not exist in her
+	// namespace.
+	_, err := alice_session_1.LoadFile("nonexistent")
+	if err == nil {
+		t.Error("Alice downloaded nonexistent. Should error")
+		return
+	}
+
+	// Bob creates a second user session by authenticating to the client again.
+	bob_session_3, err := GetUser("user_bob", "password2")
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+	bob_session_2, err := GetUser("user_bob", "password2")
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	t.Error(bob_session_1)
+	t.Error(bob_session_2)
+	t.Error(bob_session_3)
+
+	// Bob stores byte slice f2 with name "newfile" using his second user
+	// session.
+	bob_session_2.StoreFile("newfile", f2)
+
+	// Bob loads "newfile" using his first user session. Notice that Bob does
+	// not need to reauthenticate. File changes must be available to all active
+	// sessions for a given user.
+
+	f2_newfile, err := bob_session_1.LoadFile("newfile")
+	if err != nil {
+		t.Error("error", err)
+	}
+
+	f2_newfile, err = bob_session_2.LoadFile("newfile")
+	if err != nil {
+		t.Error("error", err)
+	}
+
+	f2_newfile, err = bob_session_3.LoadFile("newfile")
+	if err != nil {
+		t.Error("error", err)
+	}
+
+	if !reflect.DeepEqual(f2, f2_newfile) {
+		t.Error("file contents are different.", f2_newfile, f2)
+		return
+	}
+}
+
 func TestInvalidFile(t *testing.T) {
 	clear()
 	u, err := InitUser("alice", "fubar")

@@ -83,9 +83,9 @@ type User struct {
 	DsSecretKey userlib.DSSignKey
 	HmacKey []byte
 	SymmEncKey []byte
-	FileNameToMetaData map[string]*HeaderLocation
-	OwnedFilesToInvitations map[string][]*InvitationInformation
-	ReceivedFilesToInvitations map[string]*ReceivedFileInformation
+	FileNameToMetaData *map[string]*HeaderLocation
+	OwnedFilesToInvitations *map[string][]*InvitationInformation
+	ReceivedFilesToInvitations *map[string]*ReceivedFileInformation
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
 	// be public (start with a capital letter)
@@ -162,9 +162,12 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	HmacAndEncKeys := userlib.Argon2Key(userlib.Hash([]byte(password)), []byte(username), 32)
 	userdata.HmacKey = HmacAndEncKeys[:16]
 	userdata.SymmEncKey = HmacAndEncKeys[16:]
-	userdata.FileNameToMetaData = make(map[string]*HeaderLocation)
-	userdata.OwnedFilesToInvitations = make(map[string][]*InvitationInformation)
-	userdata.ReceivedFilesToInvitations = make(map[string]*ReceivedFileInformation)
+	tempA := make(map[string]*HeaderLocation)
+	userdata.FileNameToMetaData = &tempA
+	tempB := make(map[string][]*InvitationInformation)
+	userdata.OwnedFilesToInvitations = &tempB
+	tempC := make(map[string]*ReceivedFileInformation)
+	userdata.ReceivedFilesToInvitations = &tempC
 	ByteUserStruct, err = json.Marshal(userdata)
 	if err != nil {
 		return nil, err
@@ -273,10 +276,12 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 	var fileHeader FileHeader
 	var fileHeaderptr = &fileHeader
 	//Get File header UUID and PrimaryKey from user's 1st hashmap (if exists)
-	fileHeaderData, ok := userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))]
+	tempA := *(userdata.FileNameToMetaData)
+	fileHeaderData, ok := tempA[string(userlib.Hash([]byte(filename)))]
 	//File exists
 	if ok {
-		fileInvitationInfo, okk := userdata.OwnedFilesToInvitations[string(userlib.Hash([]byte(filename)))]
+		tempB := *(userdata.OwnedFilesToInvitations)
+		fileInvitationInfo, okk := tempB[string(userlib.Hash([]byte(filename)))]
 		_ = fileInvitationInfo
 		//User is owner
 		if okk {
@@ -286,11 +291,13 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		} else {
 			
 			//Get invitation via location and verify authenticity with Owner DS Public Key.
-			receivedFileInfo, okkk := userdata.ReceivedFilesToInvitations[string(userlib.Hash([]byte(filename)))]
+			tempC := *(userdata.ReceivedFilesToInvitations)
+			receivedFileInfo, okkk := tempC[string(userlib.Hash([]byte(filename)))]
 			_ = okkk
 			fileInvitation, okkkk := userlib.DatastoreGet(receivedFileInfo.RecievedToken)
 			_ = okkkk
-			OwnerKey, ook := userlib.KeystoreGet(string(userlib.Hash([]byte(userdata.ReceivedFilesToInvitations[string(userlib.Hash([]byte(filename)))].Owner + "1"))))
+			tempD := *(userdata.ReceivedFilesToInvitations)
+			OwnerKey, ook := userlib.KeystoreGet(string(userlib.Hash([]byte(tempD[string(userlib.Hash([]byte(filename)))].Owner + "1"))))
 			_ = ook
 
 			//length Check
@@ -371,8 +378,10 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		newFileHeaderUUID := uuid.New()
 		newFileHeaderPrimaryKey := userlib.RandomBytes(16)
 		newHeaderLocation := &HeaderLocation{newFileHeaderUUID, newFileHeaderPrimaryKey}
-		userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))] = newHeaderLocation
-		userdata.OwnedFilesToInvitations[string(userlib.Hash([]byte(filename)))] = make([]*InvitationInformation, 1)
+		tempE := *(userdata.FileNameToMetaData)
+		tempE[string(userlib.Hash([]byte(filename)))] = newHeaderLocation
+		tempF := *(userdata.OwnedFilesToInvitations)
+		tempF[string(userlib.Hash([]byte(filename)))] = make([]*InvitationInformation, 1)
 		userPKEKey, oook := userlib.KeystoreGet(string(userlib.Hash([]byte(userdata.Username + "0"))))
 		_ = oook
 		fileHeaderptr.OwnerEncrypted, err = userlib.PKEEnc(userPKEKey, []byte(userdata.Username))
@@ -425,7 +434,8 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 	if err != nil {
 		return err
 	}
-	derivedFileHeaderKeys, err = userlib.HashKDF(userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))].HeaderPrimaryKey, []byte("derivedfileheaderkeys"))
+	tempG := *(userdata.FileNameToMetaData)
+	derivedFileHeaderKeys, err = userlib.HashKDF(tempG[string(userlib.Hash([]byte(filename)))].HeaderPrimaryKey, []byte("derivedfileheaderkeys"))
 	if err != nil {
 		return err
 	}
@@ -440,7 +450,8 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		return err
 	}
 	encryptedAndMacFileHeader := append(fileHeaderMac, encryptedFileHeader...)
-	userlib.DatastoreSet(userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))].HeaderUuid, encryptedAndMacFileHeader)
+	tempH := *(userdata.FileNameToMetaData)
+	userlib.DatastoreSet(tempH[string(userlib.Hash([]byte(filename)))].HeaderUuid, encryptedAndMacFileHeader)
 	return
 }
 
@@ -455,11 +466,13 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	var fileHeaderptr = &fileHeader
 
 	//Error check: Get File header UUID and PrimaryKey from user's 1st hashmap (if exists)
-	fileHeaderData, ok := userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))]
+	tempA := *(userdata.FileNameToMetaData)
+	fileHeaderData, ok := tempA[string(userlib.Hash([]byte(filename)))]
 	if !ok {
 		return errors.New(strings.ToTitle("User doesn't own file"))
 	}
-	fileInvitationInfo, okk := userdata.OwnedFilesToInvitations[string(userlib.Hash([]byte(filename)))]
+	tempB := *(userdata.OwnedFilesToInvitations)
+	fileInvitationInfo, okk := tempB[string(userlib.Hash([]byte(filename)))]
 	_ = fileInvitationInfo
 	//User is owner
 	if okk {
@@ -468,11 +481,13 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	//User is shared
 	} else {
 		//Get invitation via location and verify authenticity with Owner DS Public Key.
-		receivedFileInfo, okkk := userdata.ReceivedFilesToInvitations[string(userlib.Hash([]byte(filename)))]
+		tempC := *(userdata.ReceivedFilesToInvitations)
+		receivedFileInfo, okkk := tempC[string(userlib.Hash([]byte(filename)))]
 		_ = okkk
 		fileInvitation, okkkk := userlib.DatastoreGet(receivedFileInfo.RecievedToken)
 		_ = okkkk
-		OwnerKey, ook := userlib.KeystoreGet(string(userlib.Hash([]byte(userdata.ReceivedFilesToInvitations[string(userlib.Hash([]byte(filename)))].Owner + "1"))))
+		tempD := *(userdata.ReceivedFilesToInvitations)
+		OwnerKey, ook := userlib.KeystoreGet(string(userlib.Hash([]byte(tempD[string(userlib.Hash([]byte(filename)))].Owner + "1"))))
 		_ = ook
 
 		//length Check
@@ -584,7 +599,8 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	if err != nil {
 		return err
 	}
-	derivedFileHeaderKeys, err = userlib.HashKDF(userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))].HeaderPrimaryKey, []byte("derivedfileheaderkeys"))
+	tempE := *(userdata.FileNameToMetaData)
+	derivedFileHeaderKeys, err = userlib.HashKDF(tempE[string(userlib.Hash([]byte(filename)))].HeaderPrimaryKey, []byte("derivedfileheaderkeys"))
 	if err != nil {
 		return err
 	}
@@ -599,7 +615,8 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 		return err
 	}
 	encryptedAndMacFileHeader := append(fileHeaderMac, encryptedFileHeader...)
-	userlib.DatastoreSet(userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))].HeaderUuid, encryptedAndMacFileHeader)
+	tempF := *(userdata.FileNameToMetaData)
+	userlib.DatastoreSet(tempF[string(userlib.Hash([]byte(filename)))].HeaderUuid, encryptedAndMacFileHeader)
 
 	return
 }
@@ -625,12 +642,14 @@ func (userdata *User) LoadFile(filename string) (dataBytes []byte, err error) {
 	var fileHeaderptr = &fileHeader
 	
 	//Error check: Get File header UUID and PrimaryKey from user's 1st hashmap (if exists)
-	fileHeaderData, ok := userdata.FileNameToMetaData[string(userlib.Hash([]byte(filename)))]
+	tempA := *(userdata.FileNameToMetaData)
+	fileHeaderData, ok := tempA[string(userlib.Hash([]byte(filename)))]
 	if !ok {
 		return nil, errors.New(strings.ToTitle("User doesn't have file"))
 	}
 
-	fileInvitationInfo, okk := userdata.OwnedFilesToInvitations[string(userlib.Hash([]byte(filename)))]
+	tempB := *(userdata.OwnedFilesToInvitations)
+	fileInvitationInfo, okk := tempB[string(userlib.Hash([]byte(filename)))]
 	_ = fileInvitationInfo
 	//User is owner
 	if okk {
@@ -639,11 +658,13 @@ func (userdata *User) LoadFile(filename string) (dataBytes []byte, err error) {
 	//User is shared
 	} else {
 		//Get invitation via location and verify authenticity with Owner DS Public Key.
-		receivedFileInfo, okkk := userdata.ReceivedFilesToInvitations[string(userlib.Hash([]byte(filename)))]
+		tempC := *(userdata.ReceivedFilesToInvitations)
+		receivedFileInfo, okkk := tempC[string(userlib.Hash([]byte(filename)))]
 		_ = okkk
 		fileInvitation, okkkk := userlib.DatastoreGet(receivedFileInfo.RecievedToken)
 		_ = okkkk
-		OwnerKey, ook := userlib.KeystoreGet(string(userlib.Hash([]byte(userdata.ReceivedFilesToInvitations[string(userlib.Hash([]byte(filename)))].Owner + "1"))))
+		tempD := *(userdata.ReceivedFilesToInvitations)
+		OwnerKey, ook := userlib.KeystoreGet(string(userlib.Hash([]byte(tempD[string(userlib.Hash([]byte(filename)))].Owner + "1"))))
 		_ = ook
 
 		//length Check
