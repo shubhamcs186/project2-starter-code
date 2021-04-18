@@ -5,7 +5,7 @@ package proj2
 
 import (
 	_ "encoding/hex"
-	_ "encoding/json"
+	"encoding/json"
 	_ "errors"
 	"reflect"
 	_ "strconv"
@@ -23,9 +23,13 @@ func clear() {
 	userlib.KeystoreClear()
 }
 
+//TODO: 
+/*test all: do the file moving forcing you to check hashmap for updated uuid and keys
+test store/load/append: not owner, check invitations, corrupt invitations
+*/
+
 func TestInit(t *testing.T) {
 	clear()
-	t.Log("Initialization test")
 
 	// You can set this to false!
 	userlib.SetDebugStatus(true)
@@ -47,7 +51,6 @@ func TestInit(t *testing.T) {
 
 func TestInitErrorOne(t *testing.T) {
 	clear()
-	t.Log("InitErrorOne test")
 
 	userlib.SetDebugStatus(true)
 
@@ -65,7 +68,6 @@ func TestInitErrorOne(t *testing.T) {
 
 func TestInitErrorTwo(t *testing.T) {
 	clear()
-	t.Log("InitErrorTwo test")
 
 	userlib.SetDebugStatus(true)
 
@@ -83,8 +85,6 @@ func TestInitErrorTwo(t *testing.T) {
 
 func TestGetUser(t *testing.T) {
 	clear()
-	t.Log("GetUser test")
-
 	userlib.SetDebugStatus(true)
 
 	user1, er := InitUser("alice", "fubar")
@@ -105,8 +105,6 @@ func TestGetUser(t *testing.T) {
 
 func TestGetUserError1(t *testing.T) {
 	clear()
-	t.Log("GetUserError test")
-
 	userlib.SetDebugStatus(true)
 
 	_, er := InitUser("alice", "fubar")
@@ -124,8 +122,6 @@ func TestGetUserError1(t *testing.T) {
 
 func TestGetUserError2(t *testing.T) {
 	clear()
-	t.Log("GetUserError2 test")
-
 	userlib.SetDebugStatus(true)
 
 	_, er := InitUser("alice", "fubar")
@@ -143,8 +139,6 @@ func TestGetUserError2(t *testing.T) {
 
 func TestGetUserError3(t *testing.T) {
 	clear()
-	t.Log("GetUserError3 test")
-
 	userlib.SetDebugStatus(true)
 
 	u, er := InitUser("alice", "fubar")
@@ -159,12 +153,12 @@ func TestGetUserError3(t *testing.T) {
 	u, err := GetUser("alice", "fubar")
 	if err == nil {
 		t.Error("alice user corrupted and should error", err)
+		return
 	}
 }
 
 func TestStoreFile1(t *testing.T) {
 	clear()
-	t.Log("StoreFile test")
 
 	// You can set this to false!
 	userlib.SetDebugStatus(true)
@@ -179,31 +173,33 @@ func TestStoreFile1(t *testing.T) {
 	err = u.StoreFile("file1", f1)
 	if err != nil {
 		t.Error("Failed to store file", err)
+		return
 	}
 
 	f2 := []byte("file2")
 	err = u.StoreFile("file2", f2)
 	if err != nil {
 		t.Error("Failed to store file", err)
+		return
 	}
 
 	f3 := []byte("file1New")
 	err = u.StoreFile("file1", f3)
 	if err != nil {
 		t.Error("Failed to store file", err)
+		return
 	}
 
 	f4 := []byte("file2New")
 	err = u.StoreFile("file2", f4)
 	if err != nil {
 		t.Error("Failed to store file", err)
+		return
 	}
 }
 
 func TestStoreFileError(t *testing.T) {
 	clear()
-	t.Log("StoreFileError test")
-
 	// You can set this to false!
 	userlib.SetDebugStatus(true)
 
@@ -217,6 +213,7 @@ func TestStoreFileError(t *testing.T) {
 	err = u.StoreFile("file1", f1)
 	if err != nil {
 		t.Error("Failed to store file", err)
+		return
 	}
 
 	fileHeadLocation := u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
@@ -226,13 +223,12 @@ func TestStoreFileError(t *testing.T) {
 	err = u.StoreFile("file1", f3)
 	if err == nil {
 		t.Error("File header has been corrupted. Should error", err)
+		return
 	}
 }
 
 func TestStoreFileError2(t *testing.T) {
 	clear()
-	t.Log("StoreFileError2 test")
-
 	// You can set this to false!
 	userlib.SetDebugStatus(true)
 
@@ -246,6 +242,7 @@ func TestStoreFileError2(t *testing.T) {
 	err = u.StoreFile("file1", f1)
 	if err != nil {
 		t.Error("Failed to store file", err)
+		return
 	}
 
 	fileHeadLocation := u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
@@ -255,6 +252,182 @@ func TestStoreFileError2(t *testing.T) {
 	err = u.StoreFile("file1", f3)
 	if err == nil {
 		t.Error("File header has been corrupted. Should error", err)
+		return
+	}
+}
+
+func TestAppendFile1(t *testing.T) {
+	clear()
+	// You can set this to false!
+	userlib.SetDebugStatus(true)
+
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	f1 := []byte("file1")
+	err = u.StoreFile("file1", f1)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	f2 := []byte("file2")
+	err = u.StoreFile("file2", f2)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	f3 := []byte("file1New")
+	err = u.AppendFile("file1", f3)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	f4 := []byte("file2New")
+	err = u.AppendFile("file2", f4)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	var fileHeader FileHeader
+	var fileHeaderptr = &fileHeader
+	fileHeadLocation := u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
+	fileHeaderStructAndMac, _ := userlib.DatastoreGet(fileHeadLocation.HeaderUuid)
+	fileHeaderPrimaryKey := fileHeadLocation.HeaderPrimaryKey
+
+	derivedFileHeaderKeys, erro := userlib.HashKDF(fileHeaderPrimaryKey, []byte("derivedfileheaderkeys"))
+	_ = erro
+
+	//Decrypt, depad, and unmarshal fileheader.
+	FileHeaderStructDecrypt := userlib.SymDec(derivedFileHeaderKeys[:16], fileHeaderStructAndMac[64:])
+	LastByte := FileHeaderStructDecrypt[len(FileHeaderStructDecrypt) - 1]
+	FileHeaderStructDecrypt = FileHeaderStructDecrypt[:(len(FileHeaderStructDecrypt) - int(LastByte))]
+	err = json.Unmarshal(FileHeaderStructDecrypt, fileHeaderptr)
+	if err != nil {
+		t.Error("Failed", err)
+		return
+	}
+	if fileHeaderptr.FileLength != 2 {
+		t.Error("Failed length check", err)
+		return
+	}
+
+	f3 = []byte("file1New")
+	err = u.StoreFile("file1", f3)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	fileHeadLocation = u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
+	fileHeaderStructAndMac, _ = userlib.DatastoreGet(fileHeadLocation.HeaderUuid)
+	fileHeaderPrimaryKey = fileHeadLocation.HeaderPrimaryKey
+
+	derivedFileHeaderKeys, erro = userlib.HashKDF(fileHeaderPrimaryKey, []byte("derivedfileheaderkeys"))
+	_ = erro
+
+	//Decrypt, depad, and unmarshal fileheader.
+	FileHeaderStructDecrypt = userlib.SymDec(derivedFileHeaderKeys[:16], fileHeaderStructAndMac[64:])
+	LastByte = FileHeaderStructDecrypt[len(FileHeaderStructDecrypt) - 1]
+	FileHeaderStructDecrypt = FileHeaderStructDecrypt[:(len(FileHeaderStructDecrypt) - int(LastByte))]
+	err = json.Unmarshal(FileHeaderStructDecrypt, fileHeaderptr)
+	if err != nil {
+		t.Error("Failed", err)
+		return
+	}
+	if fileHeaderptr.FileLength != 1 {
+		t.Error("Failed length check", err)
+		return
+	}
+}
+
+func TestApendFileError1(t *testing.T) {
+	clear()
+	// You can set this to false!
+	userlib.SetDebugStatus(true)
+
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	f1 := []byte("file1")
+	err = u.StoreFile("file1", f1)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	f3 := []byte("file1New")
+	err = u.AppendFile("file3", f3)
+	if err == nil {
+		t.Error("User doesn't own file, should error", err)
+		return
+	}
+}
+
+func TestAppendFileError2(t *testing.T) {
+	clear()
+	// You can set this to false!
+	userlib.SetDebugStatus(true)
+
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	f1 := []byte("file1")
+	err = u.StoreFile("file1", f1)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	fileHeadLocation := u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
+	userlib.DatastoreSet(fileHeadLocation.HeaderUuid, []byte("garbage"))
+
+	f3 := []byte("file1New")
+	err = u.AppendFile("file1", f3)
+	if err == nil {
+		t.Error("File header has been corrupted. Should error", err)
+		return
+	}
+}
+
+func TestAppendFileError3(t *testing.T) {
+	clear()
+	// You can set this to false!
+	userlib.SetDebugStatus(true)
+
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	f1 := []byte("file1")
+	err = u.StoreFile("file1", f1)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	fileHeadLocation := u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
+	userlib.DatastoreSet(fileHeadLocation.HeaderUuid, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+
+	f3 := []byte("file1New")
+	err = u.AppendFile("file1", f3)
+	if err == nil {
+		t.Error("File header has been corrupted. Should error", err)
+		return
 	}
 }
 
