@@ -230,7 +230,7 @@ func TestStoreFileError(t *testing.T) {
 			changedElem = k
 		}
 	}
-	ds[changedElem] = ([]byte("garbage"))
+	userlib.DatastoreSet(changedElem, []byte("garbage"))
 
 	f3 := []byte("file1New")
 	err = u.StoreFile("file1", f3)
@@ -272,8 +272,8 @@ func TestStoreFileError2(t *testing.T) {
 			changedElem = k
 		}
 	}
-	ds[changedElem] = ([]byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
-
+	userlib.DatastoreSet(changedElem, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+	
 	f3 := []byte("file1New")
 	err = u.StoreFile("file1", f3)
 	if err == nil {
@@ -433,7 +433,7 @@ func TestAppendFileError2(t *testing.T) {
 			changedElem = k
 		}
 	}
-	ds[changedElem] = ([]byte("garbage"))
+	userlib.DatastoreSet(changedElem, []byte("garbage"))
 
 	f3 := []byte("file1New")
 	err = u.AppendFile("file1", f3)
@@ -474,7 +474,7 @@ func TestAppendFileError3(t *testing.T) {
 			changedElem = k
 		}
 	}
-	ds[changedElem] = ([]byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+	userlib.DatastoreSet(changedElem, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
 
 	f3 := []byte("file1New")
 	err = u.AppendFile("file1", f3)
