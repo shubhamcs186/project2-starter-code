@@ -843,6 +843,7 @@ func TestShareReceiveError(t *testing.T) {
 	}
 }
 
+/*
 func TestGetUserError3(t *testing.T) {
 	clear()
 	userlib.SetDebugStatus(true)
@@ -1061,3 +1062,4 @@ func TestReceiveCorruptInvitation(t *testing.T) {
 		return
 	}
 }
+*/
