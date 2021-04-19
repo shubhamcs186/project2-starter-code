@@ -793,6 +793,7 @@ func TestLoadFileError1(t *testing.T) {
 	}
 }
 
+/*
 func TestLoadFileCorruption(t *testing.T) {
 	clear()
 	// You can set this to false!
@@ -834,6 +835,7 @@ func TestLoadFileCorruption(t *testing.T) {
 	}
 }
 
+
 func TestUserCorruption(t *testing.T) {
 	clear()
 	// You can set this to false!
@@ -874,6 +876,7 @@ func TestUserCorruption(t *testing.T) {
 		return
 	}
 }
+*/
 
 func TestShare(t *testing.T) {
 	clear()
