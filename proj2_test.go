@@ -1028,3 +1028,36 @@ func TestShareReceiveError(t *testing.T) {
 		return 
 	}
 }
+
+func TestReceiveCorruptInvitation(t *testing.T) {
+	clear()
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	u2, err2 := InitUser("bob", "foobar")
+	if err2 != nil {
+		t.Error("Failed to initialize bob", err2)
+		return
+	}
+
+	v := []byte("This is a test")
+	u.StoreFile("file1", v)
+
+	var accessToken uuid.UUID
+
+	accessToken, err = u.ShareFile("file1", "bob")
+	if err != nil {
+		t.Error("Failed to share the a file", err)
+		return
+	}
+
+	userlib.DatastoreSet(accessToken, []byte("garbage"))
+
+	err = u2.ReceiveFile("file1", "alice", accessToken)
+	if err == nil {
+		t.Error("AccessToken corrupted, should error", err)
+		return
+	}
+}
