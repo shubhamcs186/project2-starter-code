@@ -1160,24 +1160,23 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 func (userdata *User) ReceiveFile(filename string, sender string,
 	accessToken uuid.UUID) error {
 	
-	var fileHeaderUUID userlib.UUID
-	var fileHeaderPrimaryKey []byte
+	//var fileHeaderUUID userlib.UUID
+	//var fileHeaderPrimaryKey []byte
 	var derivedFileHeaderKeys []byte
 	var fileHeader FileHeader
 	var fileHeaderptr = &fileHeader
 
-	var accessTokenReturn uuid.UUID
+	//var accessTokenReturn uuid.UUID
 	
-	var UserID uuid.UUID
-	UserID, err = uuid.FromBytes(userlib.Hash([]byte(userdata.Username))[:16])
+	UserID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username))[:16])
 	if err != nil {
 		return err
 	}
 
-	//Pull actual HMAC and verify integrity/authenticate -> make sure to do length of HMAC check
+	//Pull user's actual HMAC and verify integrity/authenticate -> make sure to do length of HMAC check
 	ActualHmacAndStructEnc, _ := userlib.DatastoreGet(UserID)
 	if len(ActualHmacAndStructEnc) < 64 {
-		return uuid.Nil, errors.New(strings.ToTitle("Integrity compromised."))
+		return errors.New(strings.ToTitle("Integrity compromised."))
 	}
 	ActualHmac := ActualHmacAndStructEnc[:64]
 	var SupposedHmac []byte
@@ -1195,12 +1194,13 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	StructDecrypt = StructDecrypt[:(len(StructDecrypt) - int(LastByte))]
 	err = json.Unmarshal(StructDecrypt, userdata)
 	if err != nil {
+		userlib.DebugMsg("Initial A")
 		return err
 	}
 
 	//Error check: Get File header UUID and PrimaryKey from user's 1st hashmap (if exists)
 	tempA := userdata.FileNameToMetaData
-	fileHeaderData, ok := tempA[filename]
+	_, ok := tempA[filename]
 	if ok {
 		return errors.New(strings.ToTitle("User can't receive a file they already have."))
 	}
@@ -1219,13 +1219,17 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	}
 
 	//Decrypt (using user's private RSA key (only 1)), depad, and unmarshal struct about invitation.
-	structAboutInvitationDecrypt := userlib.PKEDec(userdata.PkeSecretKey, bytesOfStructAboutInvitation[256:])
-	LastByte := structAboutInvitationDecrypt[len(structAboutInvitationDecrypt) - 1]
-	structAboutInvitationDecrypt = structAboutInvitationDecrypt[:(len(structAboutInvitationDecrypt) - int(LastByte))]
+	structAboutInvitationDecrypt, erro := userlib.PKEDec(userdata.PkeSecretKey, bytesOfStructAboutInvitation[256:])
+	if erro != nil {
+		return erro
+	}
+	//LastByte = structAboutInvitationDecrypt[len(structAboutInvitationDecrypt) - 1]
+	//structAboutInvitationDecrypt = structAboutInvitationDecrypt[:(len(structAboutInvitationDecrypt) - int(LastByte))]
 	var invitationData ReceivedFileInformation
 	var invitationdataptr = &invitationData
 	err = json.Unmarshal(structAboutInvitationDecrypt, invitationdataptr)
 	if err != nil {
+		userlib.DebugMsg("Initial B")
 		return err
 	}
 	
@@ -1246,7 +1250,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	// 	HeaderPrimaryKey []byte
 	// }
 
-	bytesOfInvitation, okk := userlib.DatastoreGet(invitationdataptr.ReceivedToken)
+	bytesOfInvitation, _ := userlib.DatastoreGet(invitationdataptr.RecievedToken)
 	OwnerDSKey, ook := userlib.KeystoreGet(string(userlib.Hash([]byte(invitationdataptr.Owner + "1"))))
 	_ = ook
 
@@ -1261,13 +1265,14 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	}
 
 	//Decrypt (using invitation key (only 1)), depad, and unmarshal invitation.
-	InvitationStructDecrypt := userlib.SymDec(receivedFileInfo.InvitationEncryptionKey, bytesOfInvitation[256:])
-	LastByte := InvitationStructDecrypt[len(InvitationStructDecrypt) - 1]
+	InvitationStructDecrypt := userlib.SymDec(invitationdataptr.InvitationEncryptionKey, bytesOfInvitation[256:])
+	LastByte = InvitationStructDecrypt[len(InvitationStructDecrypt) - 1]
 	InvitationStructDecrypt = InvitationStructDecrypt[:(len(InvitationStructDecrypt) - int(LastByte))]
 	var invitationInfo Invitation
 	var invitationinfoptr = &invitationInfo
 	err = json.Unmarshal(InvitationStructDecrypt, invitationinfoptr)
 	if err != nil {
+		userlib.DebugMsg("Initial C")
 		return err
 	}
 
@@ -1282,7 +1287,6 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	}
 
 	ActualHeaderMac := fileHeaderStructAndMac[:64]
-	var SupposedHmac []byte
 	SupposedHmac, err = userlib.HMACEval(derivedFileHeaderKeys[16:32], fileHeaderStructAndMac[64:])
 	if err != nil {
 		return err
@@ -1293,14 +1297,49 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 		
 	//Decrypt, depad, and unmarshal fileheader.
 	FileHeaderStructDecrypt := userlib.SymDec(derivedFileHeaderKeys[:16], fileHeaderStructAndMac[64:])
-	LastByte := FileHeaderStructDecrypt[len(FileHeaderStructDecrypt) - 1]
+	LastByte = FileHeaderStructDecrypt[len(FileHeaderStructDecrypt) - 1]
 	FileHeaderStructDecrypt = FileHeaderStructDecrypt[:(len(FileHeaderStructDecrypt) - int(LastByte))]
 	err = json.Unmarshal(FileHeaderStructDecrypt, fileHeaderptr)
 	if err != nil {
+		userlib.DebugMsg("Initial D")
 		return err
 	}
 
 	userdata.FileNameToMetaData[filename] = HeaderLocation{invitationinfoptr.FileHeaderUUID, invitationinfoptr.FileHeaderPKey}
+
+	//Store userdata struct back to DataStore
+	
+	//Marshal user struct
+	var ByteUserStruct []byte
+	ByteUserStruct, err = json.Marshal(userdata)
+	if err != nil {
+		userlib.DebugMsg("Initial E")
+		return err
+	}
+
+	//Pad, Encrypt, and HMAC User Struct
+	var AmountToPad int
+	AmountToPad = 16 - (len(ByteUserStruct) % 16)
+	for i := 0; i < AmountToPad; i++ {
+		ByteUserStruct = append(ByteUserStruct, byte(AmountToPad))
+	}
+	StructEnc := userlib.SymEnc(userdata.SymmEncKey, userlib.RandomBytes(16), ByteUserStruct)
+	var StructMac []byte
+	StructMac, err = userlib.HMACEval(userdata.HmacKey, StructEnc)
+	if err != nil {
+		return err
+	}
+	StructEnc = append(StructMac, StructEnc...)
+
+	//Generate UUID to store user and store
+	var lastUserID uuid.UUID
+	lastUserID, err = uuid.FromBytes(userlib.Hash([]byte(userdata.Username))[:16])
+	if err != nil {
+		return err
+	}
+	//userlib.DebugMsg("Initial: %v", firstUserID.String())
+	//userlib.DebugMsg("Last: %v", lastUserID.String())
+	userlib.DatastoreSet(lastUserID, StructEnc)
 	
 	return nil
 }
