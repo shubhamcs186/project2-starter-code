@@ -625,6 +625,16 @@ func TestSpecExample1 (t *testing.T) {
 	}
 }
 
+func TestAppendSessionsFile (t *testing.T) {
+	clear()
+	u, err := InitUser("alice", "fubar")
+	_ = u
+	if err != nil {
+		t.Error("Failed to initalize user", err)
+		return
+	}
+}
+
 func TestInvalidFile(t *testing.T) {
 	clear()
 	u, err := InitUser("alice", "fubar")
