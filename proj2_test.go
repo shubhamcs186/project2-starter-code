@@ -26,7 +26,7 @@ func clear() {
 //TODO: 
 /*test all: do the file moving forcing you to check hashmap for updated uuid and keys
 test store/load/append: not owner, check invitations, corrupt invitations
-
+//test SHARE, REVOKE + other things (including call receive after revocation), SHARE
 //TEST SHOE EXAMPLE TEST POINTER CLEARING 
 */
 
@@ -922,5 +922,109 @@ func TestShare(t *testing.T) {
 	if !reflect.DeepEqual(v, v2) {
 		t.Error("Shared file is not the same", v, v2)
 		return
+	}
+}
+
+func TestShare1(t *testing.T) {
+	clear()
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	u2, err2 := InitUser("bob", "foobar")
+	if err2 != nil {
+		t.Error("Failed to initialize bob", err2)
+		return
+	}
+
+	v := []byte("This is a test")
+	u.StoreFile("file1", v)
+
+	var v2 []byte
+	var accessToken uuid.UUID
+
+	accessToken, err = u.ShareFile("file1", "bob")
+	if err != nil {
+		t.Error("Failed to share the a file", err)
+		return
+	}
+	err = u2.ReceiveFile("file1", "alice", accessToken)
+	if err != nil {
+		t.Error("Failed to receive the share message", err)
+		return
+	}
+
+	err = u2.AppendFile("file1", []byte(" yes"))
+	if err != nil {
+		t.Error("Failed to download the file after sharing", err)
+		return
+	}
+
+	v, err = u.LoadFile("file1")
+	if err != nil {
+		t.Error("Failed to download the file from alice", err)
+		return
+	}
+
+	v2 = []byte("This is a test yes")
+
+	if !reflect.DeepEqual(v, v2) {
+		t.Error("Shared file is not the same", v, v2)
+		return
+	}
+
+	err = u2.StoreFile("file1", []byte("ok"))
+	if err != nil {
+		t.Error("Failed to store file", err)
+	}
+
+	v, err = u2.LoadFile("file1")
+	if err != nil {
+		t.Error("Failed to download file from alice", err)
+	}
+
+	v, err = u.LoadFile("file1")
+	if err != nil {
+		t.Error("Failed to download file from alice", err)
+	}
+
+	v2 = []byte("ok")
+
+	if !reflect.DeepEqual(v, v2) {
+		t.Error("Shared file is not the same", v, v2)
+		return
+	}
+}
+
+func TestShareReceiveError(t *testing.T) {
+	clear()
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	u2, err2 := InitUser("bob", "foobar")
+	if err2 != nil {
+		t.Error("Failed to initialize bob", err2)
+		return
+	}
+
+	v := []byte("This is a test")
+	u.StoreFile("file1", v)
+
+	var accessToken uuid.UUID
+
+	u2.StoreFile("file1", []byte("mallow"))
+
+	accessToken, err = u.ShareFile("file1", "bob")
+	if err != nil {
+		t.Error("Failed to share the a file", err)
+		return
+	}
+	err = u2.ReceiveFile("file1", "alice", accessToken)
+	if err == nil {
+		t.Error("Should not be able to receive since already owns file", err)
+		return 
 	}
 }
