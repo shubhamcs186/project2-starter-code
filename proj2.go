@@ -282,6 +282,10 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 	var fileHeader FileHeader
 	var fileHeaderptr = &fileHeader
 
+	if userdata == nil {
+		return errors.New(strings.ToTitle("User doesn't exist."))
+	}
+
 	var firstUserID uuid.UUID
 	firstUserID, err = uuid.FromBytes(userlib.Hash([]byte(userdata.Username))[:16])
 	if err != nil {
@@ -408,7 +412,7 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		
 		//Clear all existing pages.
 		for i := 0; i < fileHeaderptr.FileLength; i++ {
-			userlib.DatastoreSet(fileHeaderptr.PageUUIDS[i], []byte(""))
+			userlib.DatastoreDelete(fileHeaderptr.PageUUIDS[i])
 			//Erase PagePrimaryKeys
 			fileHeaderptr.PagePrimaryKeys[i] = []byte("")
 		}
@@ -426,7 +430,7 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		tempE := userdata.FileNameToMetaData
 		tempE[filename] = newHeaderLocation
 		tempF := userdata.OwnedFilesToInvitations
-		tempF[filename] = make([]InvitationInformation, 1)
+		tempF[filename] = make([]InvitationInformation, 0)
 		userPKEKey, oook := userlib.KeystoreGet(string(userlib.Hash([]byte(userdata.Username + "0"))))
 		_ = oook
 		fileHeaderptr.OwnerEncrypted, err = userlib.PKEEnc(userPKEKey, []byte(userdata.Username))
@@ -539,6 +543,10 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	var derivedFileHeaderKeys []byte
 	var fileHeader FileHeader
 	var fileHeaderptr = &fileHeader
+
+	if userdata == nil {
+		return errors.New(strings.ToTitle("User doesn't exist."))
+	}
 
 	var firstUserID uuid.UUID
 	firstUserID, err = uuid.FromBytes(userlib.Hash([]byte(userdata.Username))[:16])
@@ -773,6 +781,10 @@ func (userdata *User) LoadFile(filename string) (dataBytes []byte, err error) {
 	var derivedFileHeaderKeys []byte
 	var fileHeader FileHeader
 	var fileHeaderptr = &fileHeader
+
+	if userdata == nil {
+		return nil, errors.New(strings.ToTitle("User doesn't exist."))
+	}
 	
 	var UserID uuid.UUID
 	UserID, err = uuid.FromBytes(userlib.Hash([]byte(userdata.Username))[:16])
@@ -965,6 +977,15 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	// var fileHeaderptr = &fileHeader
 
 	var accessTokenReturn uuid.UUID
+
+	if userdata == nil {
+		return uuid.Nil, errors.New(strings.ToTitle("User doesn't exist."))
+	}
+
+	_, ok := userlib.KeystoreGet(string(userlib.Hash([]byte(recipient + "0"))))
+	if !ok {
+		return uuid.Nil, errors.New(strings.ToTitle("User doesn't exist"))
+	}
 	
 	var UserID uuid.UUID
 	UserID, err = uuid.FromBytes(userlib.Hash([]byte(userdata.Username))[:16])
@@ -1041,6 +1062,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 		_ = oooook
 		recipientStructEncrypted, err := userlib.PKEEnc(keystoreRet, bytesOfStructForRecipient)
 		if err != nil {
+			//userlib.DebugMsg("initial AA")
 			return uuid.Nil, err
 		}
 		recipientStructSig, errr := userlib.DSSign(userdata.DsSecretKey, recipientStructEncrypted)
@@ -1107,6 +1129,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 		_ = boolok
 		recipientStructEncrypted, errorr := userlib.PKEEnc(publicKeyStore, bytesOfStructForRecipient)
 		if errorr != nil {
+			//userlib.DebugMsg("Initial BB")
 			return uuid.Nil, errorr
 		}
 		recipientStructSig, errorrr := userlib.DSSign(userdata.DsSecretKey, recipientStructEncrypted)
@@ -1167,6 +1190,14 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	var fileHeaderptr = &fileHeader
 
 	//var accessTokenReturn uuid.UUID
+	if userdata == nil {
+		return errors.New(strings.ToTitle("User doesn't exist."))
+	}
+
+	_, wok := userlib.KeystoreGet(string(userlib.Hash([]byte(sender + "0"))))
+	if !wok {
+		return errors.New(strings.ToTitle("sender doesn't exist"))
+	}
 	
 	UserID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username))[:16])
 	if err != nil {
@@ -1194,7 +1225,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	StructDecrypt = StructDecrypt[:(len(StructDecrypt) - int(LastByte))]
 	err = json.Unmarshal(StructDecrypt, userdata)
 	if err != nil {
-		userlib.DebugMsg("Initial A")
+		//userlib.DebugMsg("Initial A1")
 		return err
 	}
 
@@ -1229,7 +1260,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	var invitationdataptr = &invitationData
 	err = json.Unmarshal(structAboutInvitationDecrypt, invitationdataptr)
 	if err != nil {
-		userlib.DebugMsg("Initial B")
+		//userlib.DebugMsg("Initial B1")
 		return err
 	}
 	
@@ -1272,7 +1303,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	var invitationinfoptr = &invitationInfo
 	err = json.Unmarshal(InvitationStructDecrypt, invitationinfoptr)
 	if err != nil {
-		userlib.DebugMsg("Initial C")
+		//userlib.DebugMsg("Initial C1")
 		return err
 	}
 
@@ -1301,7 +1332,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	FileHeaderStructDecrypt = FileHeaderStructDecrypt[:(len(FileHeaderStructDecrypt) - int(LastByte))]
 	err = json.Unmarshal(FileHeaderStructDecrypt, fileHeaderptr)
 	if err != nil {
-		userlib.DebugMsg("Initial D")
+		//userlib.DebugMsg("Initial D1")
 		return err
 	}
 
@@ -1313,7 +1344,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	var ByteUserStruct []byte
 	ByteUserStruct, err = json.Marshal(userdata)
 	if err != nil {
-		userlib.DebugMsg("Initial E")
+		//userlib.DebugMsg("Initial E1")
 		return err
 	}
 
@@ -1361,11 +1392,20 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 	// 	PagePrimaryKeys [][]byte
 	// }
 	
-	var fileHeaderUUID userlib.UUID
-	var fileHeaderPrimaryKey []byte
+	//var fileHeaderUUID userlib.UUID
+	//var fileHeaderPrimaryKey []byte
 	var derivedFileHeaderKeys []byte
 	var fileHeader FileHeader
 	var fileHeaderptr = &fileHeader
+
+	if userdata == nil {
+		return errors.New(strings.ToTitle("User doesn't exist."))
+	}
+
+	_, ok := userlib.KeystoreGet(string(userlib.Hash([]byte(targetUsername + "0"))))
+	if !ok {
+		return errors.New(strings.ToTitle("User doesn't exist"))
+	}
 	
 	//GET REVOKING USER'S STRUCT FROM DATASTORE
 	UserID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username))[:16])
@@ -1376,6 +1416,7 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 	//Pull user's actual HMAC and verify integrity/authenticate -> make sure to do length of HMAC check
 	ActualHmacAndStructEnc, _ := userlib.DatastoreGet(UserID)
 	if len(ActualHmacAndStructEnc) < 64 {
+		//userlib.DebugMsg("Reveal 1")
 		return errors.New(strings.ToTitle("Integrity compromised."))
 	}
 	ActualHmac := ActualHmacAndStructEnc[:64]
@@ -1394,14 +1435,14 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 	StructDecrypt = StructDecrypt[:(len(StructDecrypt) - int(LastByte))]
 	err = json.Unmarshal(StructDecrypt, userdata)
 	if err != nil {
-		userlib.DebugMsg("Initial A")
+		//userlib.DebugMsg("Initial A2")
 		return err
 	}
 
 	//Error check: Get File header UUID and PrimaryKey from user's 1st hashmap (if exists)
 	tempA := userdata.OwnedFilesToInvitations
-	_, ok := tempA[filename]
-	if !ok {
+	_, wok := tempA[filename]
+	if !wok {
 		return errors.New(strings.ToTitle("Owner doesn't own this file."))
 	}
 
@@ -1409,7 +1450,7 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 	var targetIsRecipient bool
 	var indexOfTargetInvitation int
 	for i := 0; i < len(tempA[filename]); i++ {
-		if tempA[filename][i].Recipient == target {
+		if tempA[filename][i].Recipient == targetUsername {
 			targetIsRecipient = true
 			indexOfTargetInvitation = i
 		}
@@ -1425,6 +1466,7 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 	derivedFileHeaderKeys, err = userlib.HashKDF(userdata.FileNameToMetaData[filename].HeaderPrimaryKey, []byte("derivedfileheaderkeys"))
 
 	if len(fileHeaderStructAndMac) < 64 {
+		//userlib.DebugMsg("Reveal 2")
 		return errors.New(strings.ToTitle("Integrity compromised."))
 	}
 
@@ -1448,7 +1490,7 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 
 	//Check if user who is revoking is the owner.
 	var ownerDecrypted []byte
-	ownerDecrypted, err = userlib.PKEDec(userdata.PkeSecretKey, fileheaderptr.OwnerEncrypted)
+	ownerDecrypted, err = userlib.PKEDec(userdata.PkeSecretKey, fileHeaderptr.OwnerEncrypted)
 	if string(ownerDecrypted) != userdata.Username {
 		return errors.New(strings.ToTitle("No one other than owner can revoke access."))
 	}
@@ -1458,12 +1500,14 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 	newFileHeaderPrimaryKey := userlib.RandomBytes(16)
 	newHeaderLocation := HeaderLocation{newFileHeaderUUID, newFileHeaderPrimaryKey}
 	tempE := userdata.FileNameToMetaData
-	previousFileHeaderUUID := tempE[filename].FileHeaderUUID
+	previousFileHeaderUUID := tempE[filename].HeaderUuid
 	tempE[filename] = newHeaderLocation
 	//ADD PAGES CHANGE
 	var page FileDataPage
 	pageptr := &page
 	var derivedPageKeys []byte
+
+	//Go through each page and update
 	for i := 0; i < fileHeaderptr.FileLength; i++ {
 		//Get old page from datastore, generate new uuid and primary key for it,
 		//update fileheader fields, put page at new location, and delete page at previous uuid.
@@ -1472,15 +1516,16 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 		_ = oookk
 		derivedPageKeys, err = userlib.HashKDF(fileHeaderptr.PagePrimaryKeys[i], []byte("derivedpagekeys"))
 		if len(pageStructAndMac) < 64 {
-			return nil, errors.New(strings.ToTitle("Integrity compromised."))
+			//userlib.DebugMsg("Reveal 3")
+			return errors.New(strings.ToTitle("Integrity compromised."))
 		}
 		ActualPageMac := pageStructAndMac[:64]
 		SupposedHmac, err = userlib.HMACEval(derivedPageKeys[16:32], pageStructAndMac[64:])
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if !userlib.HMACEqual(ActualPageMac, SupposedHmac) {
-			return nil, errors.New(strings.ToTitle("User can't be authenticated or integrity compromised."))
+			return errors.New(strings.ToTitle("User can't be authenticated or integrity compromised."))
 		}
 		//Decrypt, depad, and unmarshal data page.
 		PageStructDecrypt := userlib.SymDec(derivedPageKeys[:16], pageStructAndMac[64:])
@@ -1488,13 +1533,17 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 		PageStructDecrypt = PageStructDecrypt[:(len(PageStructDecrypt) - int(LastByte))]
 		err = json.Unmarshal(PageStructDecrypt, pageptr)
 		if err != nil {
-			return nil, err
+			return err
+		}
 		
 		newPageUUID := uuid.New()
 		newPagePrimaryKey := userlib.RandomBytes(16)
 		fileHeaderptr.PageUUIDS[i] = newPageUUID
 		fileHeaderptr.PagePrimaryKeys[i] = newPagePrimaryKey
-		newderivedPageKeys, err = userlib.HashKDF(fileHeaderptr.PagePrimaryKeys[i], []byte("derivedpagekeys"))
+		newderivedPageKeys, erro := userlib.HashKDF(fileHeaderptr.PagePrimaryKeys[i], []byte("derivedpagekeys"))
+		if erro != nil {
+			return erro
+		}
 		
 		var BytesOfNewPageStruct []byte
 		BytesOfNewPageStruct, err = json.Marshal(page)
@@ -1518,7 +1567,10 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 		userlib.DatastoreDelete(previousPageUUID)
 	}
 	//Store file header back at new uuid and delete whatever was at previous uuid.
-	newderivedFileHeaderKeys, err = userlib.HashKDF(newFileHeaderPrimaryKey, []byte("derivedfileheaderkeys"))
+	newderivedFileHeaderKeys, erro := userlib.HashKDF(newFileHeaderPrimaryKey, []byte("derivedfileheaderkeys"))
+	if erro != nil {
+		return erro
+	}
 		
 	var BytesOfNewFileHeaderStruct []byte
 	BytesOfNewFileHeaderStruct, err = json.Marshal(fileHeader)
@@ -1544,59 +1596,62 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 	
 	//Remove InvitationInformation struct for target from OwnedFilesToInvitations[filename].
 	tempF := userdata.OwnedFilesToInvitations[filename]
+	//userlib.DebugMsg("%v", tempF)
 	tempF[indexOfTargetInvitation] = tempF[len(tempF) - 1]
-	tempF[len(tempF) - 1] = nil
+	tempF[len(tempF) - 1] = InvitationInformation{uuid.Nil, []byte(""), ""}
+	//userlib.DebugMsg("%v", tempF)
 	tempF = tempF[:len(tempF) - 1]
+	//userlib.DebugMsg("%v", tempF)
 
+	//tempA := userdata.OwnedFilesToInvitations
 	//Update invitations of each person file is still shared with.
-	for i := 0; i < len(tempA[filename]); i++ {
-		BytesOfInvitation, ok := userlib.DatastoreGet(tempA[filename][i].SentToken)
+	for i := 0; i < len(tempF); i++ {
+		BytesOfInvitation, _ := userlib.DatastoreGet(tempF[i].SentToken)
 		OwnerKey, ook := userlib.KeystoreGet(string(userlib.Hash([]byte(userdata.Username + "1"))))
 		_ = ook
 
 		//length Check
 		if len(BytesOfInvitation) < 256 {
+			//userlib.DebugMsg("Reveal 4")
 			return errors.New(strings.ToTitle("Integrity compromised."))
 		}
 
+		//Verify invitation
 		err = userlib.DSVerify(OwnerKey, BytesOfInvitation[256:], BytesOfInvitation[:256])
 		if err != nil {
 			return err
 		}
 
 		//Decrypt (using invitation key (only 1)), depad, and unmarshal invitation.
-		InvitationStructDecrypt := userlib.SymDec(tempA[filename][i].InvitationEncryptionKey, fileInvitation[256:])
+		InvitationStructDecrypt := userlib.SymDec(tempF[i].InvitationEncryptionKey, BytesOfInvitation[256:])
 		LastByte := InvitationStructDecrypt[len(InvitationStructDecrypt) - 1]
 		InvitationStructDecrypt = InvitationStructDecrypt[:(len(InvitationStructDecrypt) - int(LastByte))]
 		var invitationData Invitation
 		var invitationdataptr = &invitationData
 		err = json.Unmarshal(InvitationStructDecrypt, invitationdataptr)
 		if err != nil {
-			return uuid.Nil, err
+			return err
 		}
 		
 		//Update invitation of user file is shared with.
-		if invitationdataptr.FileHeaderUUID != newFileHeaderUUID {
-			invitationData.FileHeaderUUID = newFileHeaderUUID
-		}
+		invitationData.FileHeaderUUID = newFileHeaderUUID
+
 		for i := range invitationdataptr.FileHeaderPKey {
-			if invitationdataptr.FileHeaderPKey[i] != newFileHeaderPrimaryKey[i] {
-				invitationdataptr.FileHeaderPKey[i] = newFileHeaderPrimaryKey[i]
-			}
+			invitationdataptr.FileHeaderPKey[i] = newFileHeaderPrimaryKey[i]
 		}
 
 		bytesOfInvitationStruct, err := json.Marshal(invitationData)
 		if err != nil {
-			return uuid.Nil, err
+			return err
 		}
 		AmountToPad := 16 - (len(bytesOfInvitationStruct) % 16)
 		for i := 0; i < AmountToPad; i++ {
 			bytesOfInvitationStruct = append(bytesOfInvitationStruct, byte(AmountToPad))
 		}
-		invitationEncrypted := userlib.SymEnc(tempA[filename][i].InvitationEncryptionKey, userlib.RandomBytes(16), bytesOfInvitationStruct)
+		invitationEncrypted := userlib.SymEnc(tempF[i].InvitationEncryptionKey, userlib.RandomBytes(16), bytesOfInvitationStruct)
 		invitationSig, err := userlib.DSSign(userdata.DsSecretKey, invitationEncrypted)
 		invitationEncryptedAndSigned := append(invitationSig, invitationEncrypted...)
-		userlib.DatastoreSet(tempA[filename][i].SentToken, invitationEncryptedAndSigned)
+		userlib.DatastoreSet(tempF[i].SentToken, invitationEncryptedAndSigned)
 	}
 	
 	//Store User struct back to Datastore
@@ -1605,12 +1660,11 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 	var ByteUserStruct []byte
 	ByteUserStruct, err = json.Marshal(userdata)
 	if err != nil {
-		userlib.DebugMsg("Initial E")
+		//userlib.DebugMsg("Initial E2")
 		return err
 	}
 
 	//Pad, Encrypt, and HMAC User Struct
-	var AmountToPad int
 	AmountToPad = 16 - (len(ByteUserStruct) % 16)
 	for i := 0; i < AmountToPad; i++ {
 		ByteUserStruct = append(ByteUserStruct, byte(AmountToPad))
