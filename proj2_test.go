@@ -26,6 +26,8 @@ func clear() {
 //TODO: 
 /*test all: do the file moving forcing you to check hashmap for updated uuid and keys
 test store/load/append: not owner, check invitations, corrupt invitations
+
+//TEST SHOE EXAMPLE TEST POINTER CLEARING 
 */
 
 func TestInit(t *testing.T) {
@@ -832,19 +834,43 @@ func TestLoadFileCorruption(t *testing.T) {
 	}
 }
 
-//Test Load Errors, Test load corruptions (file, user)
-
-func TestInvalidFile(t *testing.T) {
+func TestUserCorruption(t *testing.T) {
 	clear()
-	u, err := InitUser("alice", "fubar")
-	if err != nil {
-		t.Error("Failed to initialize user", err)
-		return
+	// You can set this to false!
+	userlib.SetDebugStatus(true)
+
+	ds := userlib.DatastoreGetMap()
+	ds_orig := make(map[uuid.UUID][]byte)
+	for k, v := range ds {
+		ds_orig[k] = v
 	}
 
-	_, err2 := u.LoadFile("this file does not exist")
-	if err2 == nil {
-		t.Error("Downloaded a ninexistent file", err2)
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}	
+
+	ds = userlib.DatastoreGetMap()
+	changedElem := uuid.New()
+	for k, _ := range ds {
+		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
+			changedElem = k
+		}
+	}
+
+	_ = u
+
+	f1 := []byte("nice")
+
+	u.StoreFile("file", f1)
+
+	userlib.DatastoreSet(changedElem, []byte("garbage"))
+
+	_, erro := GetUser("alice", "fubar")
+	if erro == nil {
+		t.Error("User has been corrupted. Should error.", erro)
 		return
 	}
 }
