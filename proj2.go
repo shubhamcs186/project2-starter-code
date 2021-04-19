@@ -1159,6 +1159,149 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 // https://cs161.org/assets/projects/2/docs/client_api/receivefile.html
 func (userdata *User) ReceiveFile(filename string, sender string,
 	accessToken uuid.UUID) error {
+	
+	var fileHeaderUUID userlib.UUID
+	var fileHeaderPrimaryKey []byte
+	var derivedFileHeaderKeys []byte
+	var fileHeader FileHeader
+	var fileHeaderptr = &fileHeader
+
+	var accessTokenReturn uuid.UUID
+	
+	var UserID uuid.UUID
+	UserID, err = uuid.FromBytes(userlib.Hash([]byte(userdata.Username))[:16])
+	if err != nil {
+		return err
+	}
+
+	//Pull actual HMAC and verify integrity/authenticate -> make sure to do length of HMAC check
+	ActualHmacAndStructEnc, _ := userlib.DatastoreGet(UserID)
+	if len(ActualHmacAndStructEnc) < 64 {
+		return uuid.Nil, errors.New(strings.ToTitle("Integrity compromised."))
+	}
+	ActualHmac := ActualHmacAndStructEnc[:64]
+	var SupposedHmac []byte
+	SupposedHmac, err = userlib.HMACEval(userdata.HmacKey, ActualHmacAndStructEnc[64:])
+	if err != nil {
+		return err
+	}
+	if !userlib.HMACEqual(ActualHmac, SupposedHmac) {
+		return errors.New(strings.ToTitle("User can't be authenticated or integrity compromised."))
+	}
+
+	//Decrypt, depad, and unmarshal User struct
+	StructDecrypt := userlib.SymDec(userdata.SymmEncKey, ActualHmacAndStructEnc[64:])
+	LastByte := StructDecrypt[len(StructDecrypt) - 1]
+	StructDecrypt = StructDecrypt[:(len(StructDecrypt) - int(LastByte))]
+	err = json.Unmarshal(StructDecrypt, userdata)
+	if err != nil {
+		return err
+	}
+
+	//Error check: Get File header UUID and PrimaryKey from user's 1st hashmap (if exists)
+	tempA := userdata.FileNameToMetaData
+	fileHeaderData, ok := tempA[filename]
+	if ok {
+		return errors.New(strings.ToTitle("User can't receive a file they already have."))
+	}
+
+	bytesOfStructAboutInvitation, _ := userlib.DatastoreGet(accessToken)
+	senderDSKey, ook := userlib.KeystoreGet(string(userlib.Hash([]byte(sender + "1"))))
+	_ = ook
+	//length Check
+	if len(bytesOfStructAboutInvitation) < 256 {
+		return errors.New(strings.ToTitle("Integrity compromised."))
+	}
+
+	err = userlib.DSVerify(senderDSKey, bytesOfStructAboutInvitation[256:], bytesOfStructAboutInvitation[:256])
+	if err != nil {
+		return err
+	}
+
+	//Decrypt (using user's private RSA key (only 1)), depad, and unmarshal struct about invitation.
+	structAboutInvitationDecrypt := userlib.PKEDec(userdata.PkeSecretKey, bytesOfStructAboutInvitation[256:])
+	LastByte := structAboutInvitationDecrypt[len(structAboutInvitationDecrypt) - 1]
+	structAboutInvitationDecrypt = structAboutInvitationDecrypt[:(len(structAboutInvitationDecrypt) - int(LastByte))]
+	var invitationData ReceivedFileInformation
+	var invitationdataptr = &invitationData
+	err = json.Unmarshal(structAboutInvitationDecrypt, invitationdataptr)
+	if err != nil {
+		return err
+	}
+	
+	userdata.ReceivedFilesToInvitations[filename] = invitationData
+	
+	//ReceivedFileInformation fields
+	// RecievedToken uuid.UUID
+	// InvitationEncryptionKey []byte
+	// Owner string
+
+	// type Invitation struct {
+	// 	FileHeaderUUID uuid.UUID
+	// 	FileHeaderPKey []byte
+	// }
+
+	// type HeaderLocation struct {
+	// 	HeaderUuid uuid.UUID
+	// 	HeaderPrimaryKey []byte
+	// }
+
+	bytesOfInvitation, okk := userlib.DatastoreGet(invitationdataptr.ReceivedToken)
+	OwnerDSKey, ook := userlib.KeystoreGet(string(userlib.Hash([]byte(invitationdataptr.Owner + "1"))))
+	_ = ook
+
+	//length Check
+	if len(bytesOfInvitation) < 256 {
+		return errors.New(strings.ToTitle("Integrity compromised."))
+	}
+
+	err = userlib.DSVerify(OwnerDSKey, bytesOfInvitation[256:], bytesOfInvitation[:256])
+	if err != nil {
+		return err
+	}
+
+	//Decrypt (using invitation key (only 1)), depad, and unmarshal invitation.
+	InvitationStructDecrypt := userlib.SymDec(receivedFileInfo.InvitationEncryptionKey, bytesOfInvitation[256:])
+	LastByte := InvitationStructDecrypt[len(InvitationStructDecrypt) - 1]
+	InvitationStructDecrypt = InvitationStructDecrypt[:(len(InvitationStructDecrypt) - int(LastByte))]
+	var invitationInfo Invitation
+	var invitationinfoptr = &invitationInfo
+	err = json.Unmarshal(InvitationStructDecrypt, invitationinfoptr)
+	if err != nil {
+		return err
+	}
+
+	//Both owner and shared
+	//Access Fileheader and check for integrity by deriving file header HMAC and Encrypt keys from PrimaryKey. -> length check too
+	fileHeaderStructAndMac, ookk := userlib.DatastoreGet(invitationinfoptr.FileHeaderUUID)
+	_ = ookk
+	derivedFileHeaderKeys, err = userlib.HashKDF(invitationinfoptr.FileHeaderPKey, []byte("derivedfileheaderkeys"))
+
+	if len(fileHeaderStructAndMac) < 64 {
+		return errors.New(strings.ToTitle("Integrity compromised."))
+	}
+
+	ActualHeaderMac := fileHeaderStructAndMac[:64]
+	var SupposedHmac []byte
+	SupposedHmac, err = userlib.HMACEval(derivedFileHeaderKeys[16:32], fileHeaderStructAndMac[64:])
+	if err != nil {
+		return err
+	}
+	if !userlib.HMACEqual(ActualHeaderMac, SupposedHmac) {
+		return errors.New(strings.ToTitle("User can't be authenticated or integrity compromised."))
+	}
+		
+	//Decrypt, depad, and unmarshal fileheader.
+	FileHeaderStructDecrypt := userlib.SymDec(derivedFileHeaderKeys[:16], fileHeaderStructAndMac[64:])
+	LastByte := FileHeaderStructDecrypt[len(FileHeaderStructDecrypt) - 1]
+	FileHeaderStructDecrypt = FileHeaderStructDecrypt[:(len(FileHeaderStructDecrypt) - int(LastByte))]
+	err = json.Unmarshal(FileHeaderStructDecrypt, fileHeaderptr)
+	if err != nil {
+		return err
+	}
+
+	userdata.FileNameToMetaData[filename] = HeaderLocation{invitationinfoptr.FileHeaderUUID, invitationinfoptr.FileHeaderPKey}
+	
 	return nil
 }
 
