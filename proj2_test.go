@@ -376,6 +376,46 @@ func TestAppendFile1(t *testing.T) {
 	*/
 }
 
+func TestAppendFile2(t *testing.T) {
+	clear()
+	// You can set this to false!
+	userlib.SetDebugStatus(true)
+
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	f1 := []byte("file1")
+	err = u.StoreFile("file1", f1)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	f2 := []byte("file2")
+	err = u.StoreFile("file2", f2)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	f3 := []byte("file1New")
+	err = u.AppendFile("file1", f3)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	f4 := []byte("file2New")
+	err = u.AppendFile("file2", f4)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+}
+
 func TestApendFileError1(t *testing.T) {
 	clear()
 	// You can set this to false!
@@ -564,11 +604,13 @@ func TestSpecExample1 (t *testing.T) {
 	//t.Error((len((*(bob_session_1.FileNameToMetaData)))))
 	if err != nil || !reflect.DeepEqual(bob_s2, f2) {
 		t.Error("s2 cannot load s1 file", err)
+		return
 	}
 	bob_s2, err = bob_session_2.LoadFile("filename2")
 	//t.Error((len((*(bob_session_1.FileNameToMetaData)))))
 	if err != nil || !reflect.DeepEqual(bob_s2, f2) {
 		t.Error("s2 cannot load s1 file", err)
+		return
 	}
 	//t.Error(bob_session_1)
 	//t.Error(bob_session_2)
@@ -602,6 +644,7 @@ func TestSpecExample1 (t *testing.T) {
 	f2_newfile, err := bob_session_1.LoadFile("newfile")
 	if err != nil || !reflect.DeepEqual(f2_newfile, f2) {
 		t.Error("error", err)
+		return
 	}
 	//t.Error((len((*(bob_session_1.FileNameToMetaData)))))
 	
@@ -617,6 +660,7 @@ func TestSpecExample1 (t *testing.T) {
 	f2_newfile, err = bob_session_3.LoadFile("newfile")
 	if err != nil || !reflect.DeepEqual(f2_newfile, f2) {
 		t.Error("error", err)
+		return
 	}
 
 	if !reflect.DeepEqual(f2, f2_newfile) {
@@ -625,15 +669,170 @@ func TestSpecExample1 (t *testing.T) {
 	}
 }
 
-func TestAppendSessionsFile (t *testing.T) {
+func TestStoreAppendLoadFile1(t *testing.T) {
 	clear()
-	u, err := InitUser("alice", "fubar")
-	_ = u
+	// You can set this to false!
+	userlib.SetDebugStatus(true)
+
+	alice_session_1, err := InitUser("alice", "fubar")
 	if err != nil {
-		t.Error("Failed to initalize user", err)
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}
+
+	f1 := []byte("file1part1")
+	err = alice_session_1.StoreFile("file1", f1)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	f1p2 := []byte("file1part2")
+	err = alice_session_1.AppendFile("file1", f1p2)
+	if err != nil {
+		t.Error("Failed to append file", err)
+		return
+	}
+
+	f1_loaded, _ := alice_session_1.LoadFile("file1")
+	f1_loaded_expected := []byte("file1part1file1part2")
+
+	if !reflect.DeepEqual(f1_loaded, f1_loaded_expected) {
+		t.Error("file contents are different", f1_loaded, f1_loaded_expected)
+		return
+	}
+
+	f1new := []byte("file1overwrite")
+	err = alice_session_1.StoreFile("file1", f1new)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+	
+	f1_loaded_new, _ := alice_session_1.LoadFile("file1")
+	if !reflect.DeepEqual(f1new, f1_loaded_new) {
+		t.Error("file contents are different", f1_loaded, f1_loaded_new)
 		return
 	}
 }
+
+func TestStoreAppendLoadSessions (t *testing.T) {
+	clear()
+	// You can set this to false!
+	userlib.SetDebugStatus(true)
+
+	alice_session_1, err := InitUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}
+
+	f1 := []byte("file1part1")
+	err = alice_session_1.StoreFile("file1", f1)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	alice_session_2, erro := GetUser("alice", "fubar")
+	if erro != nil {
+		t.Error("failed to get user", err)
+		return
+	}
+
+	f1p2 := []byte("file1part2")
+	err = alice_session_2.AppendFile("file1", f1p2)
+	if err != nil {
+		t.Error("Failed to append file", err)
+		return
+	}
+
+	f1_loaded, _ := alice_session_1.LoadFile("file1")
+	f1_loaded_expected := []byte("file1part1file1part2")
+
+	if !reflect.DeepEqual(f1_loaded, f1_loaded_expected) {
+		t.Error("file contents are different", f1_loaded, f1_loaded_expected)
+		return
+	}
+
+	f1new := []byte("file1overwrite")
+	err = alice_session_2.StoreFile("file1", f1new)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+	
+	f1_loaded_new, _ := alice_session_1.LoadFile("file1")
+	if !reflect.DeepEqual(f1new, f1_loaded_new) {
+		t.Error("file contents are different", f1_loaded, f1_loaded_new)
+		return
+	}
+}
+
+func TestLoadFileError1(t *testing.T) {
+	clear()
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	f1 := []byte("file1")
+	err = u.StoreFile("file1", f1)
+	if err !=  nil {
+		t.Error("couldn't store file")
+		return
+	}
+	_, erro := u.LoadFile("filenoexist")
+	if erro == nil {
+		t.Error("File doesn't exist and should error", erro)
+		return
+	}
+}
+
+func TestLoadFileCorruption(t *testing.T) {
+	clear()
+	// You can set this to false!
+	userlib.SetDebugStatus(true)
+
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}	
+
+	ds := userlib.DatastoreGetMap()
+	ds_orig := make(map[uuid.UUID][]byte)
+	for k, v := range ds {
+		ds_orig[k] = v
+	}
+
+	f1 := []byte("file1")
+	err = u.StoreFile("file1", f1)
+	if err != nil {
+		t.Error("Failed to store file", err)
+		return
+	}
+
+	ds = userlib.DatastoreGetMap()
+	changedElem := uuid.New()
+	for k, _ := range ds {
+		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
+			changedElem = k
+		}
+	}
+	userlib.DatastoreSet(changedElem, []byte("garbage"))
+
+	_, erro := u.LoadFile("file1")
+	if erro == nil {
+		t.Error("File header has been corrupted. Should error", err)
+		return
+	}
+}
+
+//Test Load Errors, Test load corruptions (file, user)
 
 func TestInvalidFile(t *testing.T) {
 	clear()
