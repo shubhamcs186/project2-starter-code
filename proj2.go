@@ -1204,6 +1204,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 
 	//Pull user's actual HMAC and verify integrity/authenticate -> make sure to do length of HMAC check
 	ActualHmacAndStructEnc, _ := userlib.DatastoreGet(UserID)
+	//userlib.DebugMsg("%v", UserID)
 	if len(ActualHmacAndStructEnc) < 64 {
 		return errors.New(strings.ToTitle("Integrity compromised."))
 	}

@@ -773,6 +773,23 @@ func TestShare1(t *testing.T) {
 	}
 }
 
+func TestShareError(t *testing.T) {
+	clear()
+	u, err := InitUser("alice", "fubar")
+
+	_, erro := InitUser("bob", "foobar")
+	if erro != nil {
+		t.Error("failed to initialize user")
+		return
+	}
+
+	_, err = u.ShareFile("file1", "bob")
+	if err == nil {
+		t.Error("Alice doesn't on file1, should error")
+		return
+	}
+}
+
 func TestShareReceiveError(t *testing.T) {
 	clear()
 	u, err := InitUser("alice", "fubar")
@@ -960,7 +977,7 @@ func TestAppendFileError2(t *testing.T) {
 	}
 }
 
-func TestReceiveCorruptInvitation(t *testing.T) {
+func TestReceiveCorruptAccessToken(t *testing.T) {
 	clear()
 	u, err := InitUser("alice", "fubar")
 	if err != nil {
@@ -990,6 +1007,84 @@ func TestReceiveCorruptInvitation(t *testing.T) {
 	if err == nil {
 		t.Error("AccessToken corrupted, should error", err)
 		return
+	}
+}
+
+func TestReceiveCorruptInvitation(t *testing.T) {
+	clear()
+
+	ds := userlib.DatastoreGetMap()
+	ds_orig := make(map[uuid.UUID][]byte)
+	for k, v := range ds {
+		ds_orig[k] = v
+	}
+
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to initialize user", err)
+		return
+	}
+
+	ds = userlib.DatastoreGetMap()
+	changedFirstElem := uuid.New()
+	for k, _ := range ds {
+		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
+			changedFirstElem = k
+		}
+	}
+
+	u2, err2 := InitUser("bob", "foobar")
+	if err2 != nil {
+		t.Error("Failed to initialize bob", err2)
+		return
+	}
+
+	v := []byte("This is a test")
+	u.StoreFile("file1", v)
+
+	ds = userlib.DatastoreGetMap()
+	ds_orig = make(map[uuid.UUID][]byte)
+	for k, v := range ds {
+		ds_orig[k] = v
+	}
+
+	var accessToken uuid.UUID
+
+	accessToken, err = u.ShareFile("file1", "bob")
+	if err != nil {
+		t.Error("Failed to share the a file", err)
+		return
+	}
+
+	ds = userlib.DatastoreGetMap()
+	changedElems := make([]uuid.UUID, 0)
+	for k, _ := range ds {
+		if !reflect.DeepEqual(ds[k], ds_orig[k]) && k != changedFirstElem {
+			changedElems = append(changedElems, k)
+		}
+	}
+
+	for _, changedElem := range changedElems {
+		currValue, _ := userlib.DatastoreGet(changedElem)
+		userlib.DatastoreSet(changedElem, []byte("garbage"))
+		err = u2.ReceiveFile("file1", "alice", accessToken)
+		if err == nil {
+			//Sharer is corrupted and doesn't detect since checks recipient
+			t.Error("Invitation corrupted, should error", err, changedElems, changedElem)
+			return
+		}
+		userlib.DatastoreSet(changedElem, currValue)
+	}
+
+	for _, changedElem := range changedElems {
+		currValue, _ := userlib.DatastoreGet(changedElem)
+		userlib.DatastoreSet(changedElem, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+		err = u2.ReceiveFile("file1", "alice", accessToken)
+		if err == nil {
+			t.Error("Invitation corrupted, should error", err)
+			return
+		}
+		userlib.DatastoreSet(changedElem, currValue)
 	}
 }
 
@@ -1103,7 +1198,8 @@ func TestSpecRevoke(t *testing.T) {
 }
 
 //TODO: 
-//test all corruptions
+//test all error checks & corruptions
+//revoke error check/corruption
 /*test all: do the file moving forcing you to check hashmap for updated uuid and keys
 test store/load/append: not owner, check invitations, corrupt invitations
 //test SHARE, REVOKE + other things (including call receive after revocation), SHARE
