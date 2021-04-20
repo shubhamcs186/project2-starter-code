@@ -334,6 +334,10 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		if okk {
 			fileHeaderUUID = fileHeaderData.HeaderUuid
 			fileHeaderPrimaryKey = fileHeaderData.HeaderPrimaryKey
+
+			// userlib.DebugMsg("fileheader uuid b4: %v %v", fileHeaderData.HeaderUuid, userdata.Username)
+			// userlib.DebugMsg("fileheader primarykey after: %v", fileHeaderData.HeaderPrimaryKey)
+			// userlib.DebugMsg("")
 		//User is shared
 		} else {
 			
@@ -369,6 +373,12 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 			}
 			
 			//Update hashmap of file header UUID + PrimaryKey with invitation info as necessary. (if recent revoking)
+			// userlib.DebugMsg("fileheader uuid b4: %v %v", fileHeaderData.HeaderUuid, userdata.Username)
+			// userlib.DebugMsg("fileheader primarykey b4: %v", fileHeaderData.HeaderPrimaryKey)
+
+			// userlib.DebugMsg("invitationdataptr uuid b4: %v", invitationdataptr.FileHeaderUUID)
+			// userlib.DebugMsg("invitationdataptr primarykey b4: %v", invitationdataptr.FileHeaderPKey)
+
 			if invitationdataptr.FileHeaderUUID != fileHeaderData.HeaderUuid {
 				fileHeaderData.HeaderUuid = invitationData.FileHeaderUUID
 			}
@@ -377,6 +387,14 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
             		fileHeaderData.HeaderPrimaryKey[i] = invitationdataptr.FileHeaderPKey[i]
         		}
     		}
+			userdata.FileNameToMetaData[filename] = fileHeaderData
+			// userlib.DebugMsg("fileheader uuid after: %v", fileHeaderData.HeaderUuid)
+			// userlib.DebugMsg("fileheader primarykey after: %v", fileHeaderData.HeaderPrimaryKey)
+
+			// userlib.DebugMsg("invitationdataptr uuid after: %v", invitationdataptr.FileHeaderUUID)
+			// userlib.DebugMsg("invitationdataptr primarykey after: %v", invitationdataptr.FileHeaderPKey)
+			// userlib.DebugMsg("")
+
 			fileHeaderUUID = fileHeaderData.HeaderUuid
 			fileHeaderPrimaryKey = fileHeaderData.HeaderPrimaryKey
 		}
@@ -633,6 +651,8 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 		}
 		fileHeaderUUID = fileHeaderData.HeaderUuid
 		fileHeaderPrimaryKey = fileHeaderData.HeaderPrimaryKey
+
+		userdata.FileNameToMetaData[filename] = fileHeaderData
 	}
 
 	//Both owner and shared
@@ -872,6 +892,8 @@ func (userdata *User) LoadFile(filename string) (dataBytes []byte, err error) {
 		}
 		fileHeaderUUID = fileHeaderData.HeaderUuid
 		fileHeaderPrimaryKey = fileHeaderData.HeaderPrimaryKey
+
+		userdata.FileNameToMetaData[filename] = fileHeaderData
 	}
 	//Both owner and shared
 	//Access Fileheader and check for integrity by deriving file header HMAC and Encrypt keys from PrimaryKey. -> length check too

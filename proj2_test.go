@@ -1415,6 +1415,42 @@ func TestSpecRevoke(t *testing.T) {
 	}
 }
 
+func TestShareNonexistent(t *testing.T) {
+	clear()
+
+	u1, err := InitUser("alice", "fubar")
+	if err !=  nil {
+		t.Error("error", err)
+		return
+	}
+
+	err = u1.StoreFile("file1", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	var accessToken uuid.UUID
+	accessToken = uuid.New()
+	accessToken, err = u1.ShareFile("file1", "bob")
+	if err == nil {
+		t.Error("Bob doesn't exist", err)
+		return
+	}
+
+	err = u1.ReceiveFile("file_from_alice", "bob", accessToken)
+	if err == nil {
+		t.Error("Bob doesn't exist", err)
+		return
+	}
+
+	err = u1.RevokeFile("file1", "bob")
+	if err == nil {
+		t.Error("Bob doesn't exist", err)
+		return
+	}
+}
+
 func TestShareRevokeTree(t *testing.T) {
 	clear()
 
@@ -1436,6 +1472,17 @@ func TestShareRevokeTree(t *testing.T) {
 		return
 	}
 
+	u4, errorrr := InitUser("david", "foobare")
+	if errorrr !=  nil {
+		t.Error("error", err)
+		return
+	}
+
+	u5, errorrrr := InitUser("edgar", "foobaarr")
+	if errorrrr !=  nil {
+		t.Error("error", err)
+		return
+	}
 
 	err = u1.StoreFile("file1", []byte("content"))
 	if err != nil {
@@ -1444,6 +1491,14 @@ func TestShareRevokeTree(t *testing.T) {
 	}
 
 	var accessToken uuid.UUID
+	accessToken = uuid.New()
+	err = u2.ReceiveFile("file_from_alice", "alice", accessToken)
+	if err == nil {
+		t.Error("shouldn't be able to receive file", err)
+		return
+	}
+
+	
 	accessToken, err = u1.ShareFile("file1", "bob")
 	if err != nil {
 		t.Error("couldn't share file", err)
@@ -1451,6 +1506,18 @@ func TestShareRevokeTree(t *testing.T) {
 	}
 
 	err = u2.ReceiveFile("file_from_alice", "alice", accessToken)
+	if err != nil {
+		t.Error("could'nt receive file", err)
+		return
+	}
+
+	accessToken, err = u1.ShareFile("file1", "david")
+	if err != nil {
+		t.Error("couldn't share file", err)
+		return
+	}
+
+	err = u4.ReceiveFile("file_from_alice", "alice", accessToken)
 	if err != nil {
 		t.Error("could'nt receive file", err)
 		return
@@ -1464,15 +1531,53 @@ func TestShareRevokeTree(t *testing.T) {
 		return
 	}
 
+	accessToken2, _ = u4.ShareFile("file_from_alice", "edgar")
+
+	err = u5.ReceiveFile("file_from_alice", "david", accessToken2)
+	if err != nil {
+		t.Error("Edgar should be able to receive file", err, accessToken2)
+		return
+	}
+
+	err = u5.StoreFile("file_from_alice", []byte("contentcontent"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
 	err = u3.AppendFile("file_from_alice", []byte("content"))
 	if err != nil {
 		t.Error("error", err)
 		return
 	}
 
-	file_data, _ := u3.LoadFile("file_from_alice")
-	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+	file_data, _ := u1.LoadFile("file1")
+	if !reflect.DeepEqual([]byte("contentcontentcontent"), file_data) {
+		t.Error("alice should now be able to load file", string(file_data))
+		return
+	}
+
+	file_data, _ = u2.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontentcontent"), file_data) {
+		t.Error("bob should now be able to load file")
+		return
+	}
+
+	file_data, _ = u4.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontentcontent"), file_data) {
+		t.Error("david should now be able to load file")
+		return
+	}
+
+	file_data, _ = u3.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontentcontent"), file_data) {
 		t.Error("carol should now be able to load file")
+		return
+	}
+
+	file_data, _ = u5.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontentcontent"), file_data) {
+		t.Error("edgar should now be able to load file")
 		return
 	}
 
@@ -1488,9 +1593,33 @@ func TestShareRevokeTree(t *testing.T) {
 		return
 	}
 
+	err = u2.StoreFile("file_from_alice", []byte("contentcontent"))
+	if err == nil {
+		t.Error("Bob shouldn't be able to store file", err)
+		return
+	}
+
+	err = u3.StoreFile("file_from_alice", []byte("contentcontent"))
+	if err == nil {
+		t.Error("Carol shouldn't be able to store file", err)
+		return
+	}
+
 	file_data, err = u3.LoadFile("file_from_alice")
 	if err == nil {
 		t.Error("Carol shouldn't be able to load file")
+		return
+	}
+
+	file_data, err = u4.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontentcontent"), file_data) {
+		t.Error("david should be able to load file")
+		return
+	}
+
+	file_data, err = u5.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontentcontent"), file_data) {
+		t.Error("edgar should be able to load file")
 		return
 	}
 
@@ -1506,9 +1635,71 @@ func TestShareRevokeTree(t *testing.T) {
 		return
 	}
 
+	//Alice: store, append, load works
+	//Edgar & David: load works (off alice's store and append) -> append doesn't do anything & store erases fully (problem with write back) -> have correct files
 	err = u1.StoreFile("file1", []byte("content"))
 	if err != nil {
 		t.Error("error", err)
+		return
+	}
+
+	err = u4.StoreFile("file_from_alice", []byte("bleh"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	err = u5.AppendFile("file_from_alice", []byte("bleh"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+	
+	err = u1.AppendFile("file1", []byte("bleh"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	file_data, err = u1.LoadFile("file1")
+	if !reflect.DeepEqual([]byte("blehblehbleh"), file_data) {
+		t.Error("alice should be able to load file:", string(file_data))
+		return
+	}
+	
+	file_data, err = u4.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("blehblehbleh"), file_data) {
+		t.Error("david should be able to load file:", string(file_data))
+		return
+	}
+
+	file_data, err = u5.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("blehblehbleh"), file_data) {
+		t.Error("edgar should be able to load file:", string(file_data))
+		return
+	}
+
+	err = u5.StoreFile("file_from_alice", []byte("contentcontentcontentcontent"))
+	if err != nil {
+		t.Error("edgar should be able to store file", err)
+		return
+	}
+
+	file_data, err = u4.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontentcontentcontent"), file_data) {
+		t.Error("david should be able to load file")
+		return
+	}
+
+	file_data, err = u1.LoadFile("file1")
+	if !reflect.DeepEqual([]byte("contentcontentcontentcontent"), file_data) {
+		t.Error("david should be able to load file")
+		return
+	}
+
+	err = u1.StoreFile("file1", []byte("contentcontent"))
+	if err != nil {
+		t.Error("edgar should be able to store file", err)
 		return
 	}
 
@@ -1525,13 +1716,13 @@ func TestShareRevokeTree(t *testing.T) {
 	}
 
 	file_data, _ = u2.LoadFile("file_from_alice")
-	if !reflect.DeepEqual([]byte("content"), file_data) {
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
 		t.Error("bob should now be able to load file")
 		return
 	}
 
-	file_data, _ = u1.LoadFile("file1")
-	if !reflect.DeepEqual([]byte("content"), file_data) {
+	file_data, _ = u5.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
 		t.Error("alice should be able to load file")
 		return
 	}
@@ -1542,8 +1733,14 @@ func TestShareRevokeTree(t *testing.T) {
 		return
 	}
 
-	file_data, _ = u2.LoadFile("file_from_alice")
-	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+	file_data, _ = u4.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontentcontent"), file_data) {
+		t.Error("bob should now be able to load file")
+		return
+	}
+
+	file_data, _ = u1.LoadFile("file1")
+	if !reflect.DeepEqual([]byte("contentcontentcontent"), file_data) {
 		t.Error("bob should now be able to load file")
 		return
 	}
@@ -1554,9 +1751,9 @@ func TestShareRevokeTree(t *testing.T) {
 		return
 	}
 
-	file_data, _ = u2.LoadFile("file_from_alice")
+	file_data, _ = u5.LoadFile("file_from_alice")
 	if !reflect.DeepEqual([]byte("content"), file_data) {
-		t.Error("bob should now be able to load file")
+		t.Error("edgar should be able to load file")
 		return
 	}
 
@@ -1591,17 +1788,17 @@ func TestShareRevokeTree(t *testing.T) {
 		t.Error("alice should now be able to load file")
 		return
 	}
-}
 
-//TODO: 
-/*test all: do the file moving forcing you to check hashmap for updated uuid and keys
-test store/load/append: not owner, check invitations, corrupt invitations
-//test SHARE, REVOKE + other things (including call receive after revocation), SHARE // FIX THIS RECEIVEFILE // DO RECEIVE FILE TWICE
-//TEST SHOE EXAMPLE TEST POINTER CLEARING
-//call methods on non-existent users (userbob for share, receive, revoke)
-//call receive file even before shared
-//receive tree/revoke
-//store large chunks, append large chunks
-//post revoke behavior on user who's been revoked
-*/
+	file_data, _ = u4.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+		t.Error("david should now be able to load file")
+		return
+	}
+
+	file_data, _ = u5.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+		t.Error("edgar should now be able to load file")
+		return
+	}
+}
 
