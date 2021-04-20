@@ -418,8 +418,6 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 		}
 	//File doesn't exit (new file created)
 	} else {
-		//userlib.DebugMsg("File Name: %v", filename)
-		//userlib.DebugMsg("File Content: %v", string(data))
 		// Make new file header (uuid, primary key)
 		// Add new fileheader info struct to owner's first hashmap and initialize 2nd hashmap (owned files to array of structs) with empty list
 		// initialize fileheader's owner field w/ owner name encrypted w/ owner's PKE public key

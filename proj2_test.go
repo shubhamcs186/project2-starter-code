@@ -212,59 +212,6 @@ func TestAppendFile1(t *testing.T) {
 		t.Error("Failed to store file", err)
 		return
 	}
-	/*
-
-	var fileHeader FileHeader
-	var fileHeaderptr = &fileHeader
-	fileHeadLocation := u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
-	fileHeaderStructAndMac, _ := userlib.DatastoreGet(fileHeadLocation.HeaderUuid)
-	fileHeaderPrimaryKey := fileHeadLocation.HeaderPrimaryKey
-
-	derivedFileHeaderKeys, erro := userlib.HashKDF(fileHeaderPrimaryKey, []byte("derivedfileheaderkeys"))
-	_ = erro
-
-	//Decrypt, depad, and unmarshal fileheader.
-	FileHeaderStructDecrypt := userlib.SymDec(derivedFileHeaderKeys[:16], fileHeaderStructAndMac[64:])
-	LastByte := FileHeaderStructDecrypt[len(FileHeaderStructDecrypt) - 1]
-	FileHeaderStructDecrypt = FileHeaderStructDecrypt[:(len(FileHeaderStructDecrypt) - int(LastByte))]
-	err = json.Unmarshal(FileHeaderStructDecrypt, fileHeaderptr)
-	if err != nil {
-		t.Error("Failed", err)
-		return
-	}
-	if fileHeaderptr.FileLength != 2 {
-		t.Error("Failed length check", err)
-		return
-	}
-
-	f3 = []byte("file1New")
-	err = u.StoreFile("file1", f3)
-	if err != nil {
-		t.Error("Failed to store file", err)
-		return
-	}
-
-	fileHeadLocation = u.FileNameToMetaData[string(userlib.Hash([]byte("file1")))]
-	fileHeaderStructAndMac, _ = userlib.DatastoreGet(fileHeadLocation.HeaderUuid)
-	fileHeaderPrimaryKey = fileHeadLocation.HeaderPrimaryKey
-
-	derivedFileHeaderKeys, erro = userlib.HashKDF(fileHeaderPrimaryKey, []byte("derivedfileheaderkeys"))
-	_ = erro
-
-	//Decrypt, depad, and unmarshal fileheader.
-	FileHeaderStructDecrypt = userlib.SymDec(derivedFileHeaderKeys[:16], fileHeaderStructAndMac[64:])
-	LastByte = FileHeaderStructDecrypt[len(FileHeaderStructDecrypt) - 1]
-	FileHeaderStructDecrypt = FileHeaderStructDecrypt[:(len(FileHeaderStructDecrypt) - int(LastByte))]
-	err = json.Unmarshal(FileHeaderStructDecrypt, fileHeaderptr)
-	if err != nil {
-		t.Error("Failed", err)
-		return
-	}
-	if fileHeaderptr.FileLength != 1 {
-		t.Error("Failed length check", err)
-		return
-	}
-	*/
 }
 
 func TestAppendFile2(t *testing.T) {
@@ -600,7 +547,7 @@ func TestLoadFileError1(t *testing.T) {
 	}
 }
 
-/*
+
 func TestLoadFileCorruption(t *testing.T) {
 	clear()
 	// You can set this to false!
@@ -627,18 +574,33 @@ func TestLoadFileCorruption(t *testing.T) {
 	}
 
 	ds = userlib.DatastoreGetMap()
-	changedElem := uuid.New()
+	changedElems := make([]uuid.UUID, 0)
 	for k, _ := range ds {
 		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
-			changedElem = k
+			changedElems = append(changedElems, k)
 		}
 	}
-	userlib.DatastoreSet(changedElem, []byte("garbage"))
+	
+	for _, changedElem := range changedElems {
+		currValue, _ := userlib.DatastoreGet(changedElem)
+		userlib.DatastoreSet(changedElem, []byte("garbage"))
+		_, erro := u.LoadFile("file1")
+		if erro == nil {
+			t.Error("File header has been corrupted. Should error", err)
+			return
+		}
+		userlib.DatastoreSet(changedElem, currValue)
+	}
 
-	_, erro := u.LoadFile("file1")
-	if erro == nil {
-		t.Error("File header has been corrupted. Should error", err)
-		return
+	for _, changedElem := range changedElems {
+		currValue, _ := userlib.DatastoreGet(changedElem)
+		userlib.DatastoreSet(changedElem, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+		_, erro := u.LoadFile("file1")
+		if erro == nil {
+			t.Error("File header has been corrupted. Should error", err)
+			return
+		}
+		userlib.DatastoreSet(changedElem, currValue)
 	}
 }
 
@@ -654,36 +616,43 @@ func TestUserCorruption(t *testing.T) {
 		ds_orig[k] = v
 	}
 
-	u, err := InitUser("alice", "fubar")
+	_, err := InitUser("alice", "fubar")
 	if err != nil {
 		// t.Error says the test fails
 		t.Error("Failed to initialize user", err)
 		return
-	}	
+	}
 
 	ds = userlib.DatastoreGetMap()
-	changedElem := uuid.New()
+	changedElems := make([]uuid.UUID, 0)
 	for k, _ := range ds {
 		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
-			changedElem = k
+			changedElems = append(changedElems, k)
 		}
 	}
+	
+	for _, changedElem := range changedElems {
+		currValue, _ := userlib.DatastoreGet(changedElem)
+		userlib.DatastoreSet(changedElem, []byte("garbage"))
+		_, erro := GetUser("alice", "fubar")
+		if erro == nil {
+			t.Error("User has been corrupted. Should error.", erro)
+			return
+		}
+		userlib.DatastoreSet(changedElem, currValue)
+	}
 
-	_ = u
-
-	f1 := []byte("nice")
-
-	u.StoreFile("file", f1)
-
-	userlib.DatastoreSet(changedElem, []byte("garbage"))
-
-	_, erro := GetUser("alice", "fubar")
-	if erro == nil {
-		t.Error("User has been corrupted. Should error.", erro)
-		return
+	for _, changedElem := range changedElems {
+		currValue, _ := userlib.DatastoreGet(changedElem)
+		userlib.DatastoreSet(changedElem, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+		_, erro := GetUser("alice", "fubar")
+		if erro == nil {
+			t.Error("User has been corrupted. Should error.", erro)
+			return
+		}
+		userlib.DatastoreSet(changedElem, currValue)
 	}
 }
-*/
 
 func TestShare(t *testing.T) {
 	clear()
@@ -856,22 +825,51 @@ func TestGetUserError3(t *testing.T) {
 	}
 }
 
+func TestGetUserError3Long(t *testing.T) {
+	clear()
+	userlib.SetDebugStatus(true)
+
+	u, er := InitUser("alice", "fubar")
+	if er != nil {
+		t.Error("Failed to initalize user", er)
+		return
+	}
+
+	UserID, _:= uuid.FromBytes(userlib.Hash([]byte(u.Username))[:16])
+	userlib.DatastoreSet(UserID, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+
+	u, err := GetUser("alice", "fubar")
+	if err == nil {
+		t.Error("alice user corrupted and should error", err)
+		return
+	}
+}
+
+
 func TestStoreFileError(t *testing.T) {
 	clear()
 	// You can set this to false!
 	userlib.SetDebugStatus(true)
 
+	ds := userlib.DatastoreGetMap()
+	ds_orig := make(map[uuid.UUID][]byte)
+	for k, v := range ds {
+		ds_orig[k] = v
+	}
+
 	u, err := InitUser("alice", "fubar")
 	if err != nil {
 		// t.Error says the test fails
 		t.Error("Failed to initialize user", err)
 		return
-	}
+	}	
 
-	ds := userlib.DatastoreGetMap()
-	ds_orig := make(map[uuid.UUID][]byte)
-	for k, v := range ds {
-		ds_orig[k] = v
+	ds = userlib.DatastoreGetMap()
+	changedElems := make([]uuid.UUID, 0)
+	for k, _ := range ds {
+		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
+			changedElems = append(changedElems, k)
+		}
 	}
 
 	f1 := []byte("file1")
@@ -880,63 +878,27 @@ func TestStoreFileError(t *testing.T) {
 		t.Error("Failed to store file", err)
 		return
 	}
-
-	ds = userlib.DatastoreGetMap()
-	changedElem := uuid.New()
-	for k, _ := range ds {
-		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
-			changedElem = k
-		}
-	}
-	userlib.DatastoreSet(changedElem, []byte("garbage"))
-
-	f3 := []byte("file1New")
-	err = u.StoreFile("file1", f3)
-	if err == nil {
-		t.Error("File header has been corrupted. Should error", err)
-		return
-	}
-}
-
-func TestStoreFileError2(t *testing.T) {
-	clear()
-	// You can set this to false!
-	userlib.SetDebugStatus(true)
-
-	u, err := InitUser("alice", "fubar")
-	if err != nil {
-		// t.Error says the test fails
-		t.Error("Failed to initialize user", err)
-		return
-	}
-
-	ds := userlib.DatastoreGetMap()
-	ds_orig := make(map[uuid.UUID][]byte)
-	for k, v := range ds {
-		ds_orig[k] = v
-	}
-
-	f1 := []byte("file1")
-	err = u.StoreFile("file1", f1)
-	if err != nil {
-		t.Error("Failed to store file", err)
-		return
-	}
-
-	ds = userlib.DatastoreGetMap()
-	changedElem := uuid.New()
-	for k, _ := range ds {
-		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
-			changedElem = k
-		}
-	}
-	userlib.DatastoreSet(changedElem, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
 	
-	f3 := []byte("file1New")
-	err = u.StoreFile("file1", f3)
-	if err == nil {
-		t.Error("File header has been corrupted. Should error", err)
-		return
+	for _, changedElem := range changedElems {
+		currValue, _ := userlib.DatastoreGet(changedElem)
+		userlib.DatastoreSet(changedElem, []byte("garbage"))
+		erro := u.StoreFile("file1", []byte("file1new"))
+		if erro == nil {
+			t.Error("File header has been corrupted. Should error", err)
+			return
+		}
+		userlib.DatastoreSet(changedElem, currValue)
+	}
+
+	for _, changedElem := range changedElems {
+		currValue, _ := userlib.DatastoreGet(changedElem)
+		userlib.DatastoreSet(changedElem, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+		erro := u.StoreFile("file1", []byte("file1new"))
+		if erro == nil {
+			t.Error("File header has been corrupted. Should error", err)
+			return
+		}
+		userlib.DatastoreSet(changedElem, currValue)
 	}
 }
 
@@ -945,16 +907,25 @@ func TestAppendFileError2(t *testing.T) {
 	// You can set this to false!
 	userlib.SetDebugStatus(true)
 
+	ds := userlib.DatastoreGetMap()
+	ds_orig := make(map[uuid.UUID][]byte)
+	for k, v := range ds {
+		ds_orig[k] = v
+	}
+
 	u, err := InitUser("alice", "fubar")
 	if err != nil {
 		// t.Error says the test fails
 		t.Error("Failed to initialize user", err)
 		return
 	}
-	ds := userlib.DatastoreGetMap()
-	ds_orig := make(map[uuid.UUID][]byte)
-	for k, v := range ds {
-		ds_orig[k] = v
+
+	ds = userlib.DatastoreGetMap()
+	changedElems := make([]uuid.UUID, 0)
+	for k, _ := range ds {
+		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
+			changedElems = append(changedElems, k)
+		}
 	}
 
 	f1 := []byte("file1")
@@ -964,61 +935,28 @@ func TestAppendFileError2(t *testing.T) {
 		return
 	}
 
-	ds = userlib.DatastoreGetMap()
-	changedElem := uuid.New()
-	for k, _ := range ds {
-		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
-			changedElem = k
+	for _, changedElem := range changedElems {
+		currValue, _ := userlib.DatastoreGet(changedElem)
+		userlib.DatastoreSet(changedElem, []byte("garbage"))
+		f3 := []byte("file1New")
+		err = u.AppendFile("file1", f3)
+		if err == nil {
+			t.Error("File header has been corrupted. Should error", err)
+			return
 		}
-	}
-	userlib.DatastoreSet(changedElem, []byte("garbage"))
-
-	f3 := []byte("file1New")
-	err = u.AppendFile("file1", f3)
-	if err == nil {
-		t.Error("File header has been corrupted. Should error", err)
-		return
-	}
-}
-
-func TestAppendFileError3(t *testing.T) {
-	clear()
-	// You can set this to false!
-	userlib.SetDebugStatus(true)
-
-	u, err := InitUser("alice", "fubar")
-	if err != nil {
-		// t.Error says the test fails
-		t.Error("Failed to initialize user", err)
-		return
-	}
-	ds := userlib.DatastoreGetMap()
-	ds_orig := make(map[uuid.UUID][]byte)
-	for k, v := range ds {
-		ds_orig[k] = v
+		userlib.DatastoreSet(changedElem, currValue)
 	}
 
-	f1 := []byte("file1")
-	err = u.StoreFile("file1", f1)
-	if err != nil {
-		t.Error("Failed to store file", err)
-		return
-	}
-
-	ds = userlib.DatastoreGetMap()
-	changedElem := uuid.New()
-	for k, _ := range ds {
-		if !reflect.DeepEqual(ds[k], ds_orig[k])  {
-			changedElem = k
+	for _, changedElem := range changedElems {
+		currValue, _ := userlib.DatastoreGet(changedElem)
+		userlib.DatastoreSet(changedElem, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+		f3 := []byte("file1New")
+		err = u.AppendFile("file1", f3)
+		if err == nil {
+			t.Error("File header has been corrupted. Should error", err)
+			return
 		}
-	}
-	userlib.DatastoreSet(changedElem, []byte("garbageeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
-
-	f3 := []byte("file1New")
-	err = u.AppendFile("file1", f3)
-	if err == nil {
-		t.Error("File header has been corrupted. Should error", err)
-		return
+		userlib.DatastoreSet(changedElem, currValue)
 	}
 }
 
@@ -1165,6 +1103,7 @@ func TestSpecRevoke(t *testing.T) {
 }
 
 //TODO: 
+//test all corruptions
 /*test all: do the file moving forcing you to check hashmap for updated uuid and keys
 test store/load/append: not owner, check invitations, corrupt invitations
 //test SHARE, REVOKE + other things (including call receive after revocation), SHARE
