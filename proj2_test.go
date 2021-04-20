@@ -23,18 +23,6 @@ func clear() {
 	userlib.KeystoreClear()
 }
 
-//TODO: 
-/*test all: do the file moving forcing you to check hashmap for updated uuid and keys
-test store/load/append: not owner, check invitations, corrupt invitations
-//test SHARE, REVOKE + other things (including call receive after revocation), SHARE
-//TEST SHOE EXAMPLE TEST POINTER CLEARING
-//call methods on non-existent users (userbob for share, receive, revoke)
-//call receive file even before shared
-//receive tree/revoke
-//store large chunks, append large chunks
-//post revoke behavior on user who's been revoked
-*/
-
 func TestInit(t *testing.T) {
 	clear()
 
@@ -1131,7 +1119,60 @@ func TestSpecRevoke(t *testing.T) {
 	}
 
 	file_data, err = u2.LoadFile("file_from_alice")
-	if err != nil {
-		t.Error("couldn't load file", err)
+	if err == nil {
+		t.Error("Shouldn't be able to load file", err)
+	}
+
+	file_data, _ = u1.LoadFile("file1")
+	if !reflect.DeepEqual([]byte("content"), file_data) {
+		t.Error("alice should be able to load file")
+		return
+	}
+
+	u1, _ = GetUser("alice", "fubar")
+
+	file_data, _ = u1.LoadFile("file1")
+	if !reflect.DeepEqual([]byte("content"), file_data) {
+		t.Error("alice should be able to load file")
+		return
+	}
+
+	err = u2.ReceiveFile("file_from_alice", "alice", accessToken)
+	if err == nil {
+		t.Error("Bob shouldn't be able to receive file", err)
+		return
+	}
+
+	err = u2.AppendFile("file_from_alice", []byte("alice is very mean"))
+	if err == nil {
+		t.Error("Bob shouldn't be able to append file", err)
+		return
+	}
+
+	u3, errorr := InitUser("carol", "foobaar")
+	if errorr !=  nil {
+		t.Error("error", err)
+		return
+	}
+
+	accessToken, _ = u2.ShareFile("file_from_alice", "carol")
+
+	err = u3.ReceiveFile("file_from_alice_bob", "bob", accessToken)
+	if err == nil {
+		t.Error("Carol shouldn't be able to receive file", err, accessToken)
+		return
 	}
 }
+
+//TODO: 
+/*test all: do the file moving forcing you to check hashmap for updated uuid and keys
+test store/load/append: not owner, check invitations, corrupt invitations
+//test SHARE, REVOKE + other things (including call receive after revocation), SHARE
+//TEST SHOE EXAMPLE TEST POINTER CLEARING
+//call methods on non-existent users (userbob for share, receive, revoke)
+//call receive file even before shared
+//receive tree/revoke
+//store large chunks, append large chunks
+//post revoke behavior on user who's been revoked
+*/
+

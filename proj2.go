@@ -1174,7 +1174,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	//userlib.DebugMsg("Initial: %v", firstUserID.String())
 	//userlib.DebugMsg("Last: %v", lastUserID.String())
 	userlib.DatastoreSet(lastUserID, StructEnc)
-	
+
 	return accessTokenReturn, nil
 }
 
