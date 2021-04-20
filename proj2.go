@@ -1229,10 +1229,20 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	}
 
 	//Error check: Get File header UUID and PrimaryKey from user's 1st hashmap (if exists)
+	//If user has filename in ReceivedFileInformation and the item in datastore at ReceivedToken == nil, then revoked and don't error
+	//else error
 	tempA := userdata.FileNameToMetaData
 	_, ok := tempA[filename]
 	if ok {
-		return errors.New(strings.ToTitle("User can't receive a file they already have."))
+		receivedInfo, inReceivedFiles := userdata.ReceivedFilesToInvitations[filename]
+		if !inReceivedFiles {
+			return errors.New(strings.ToTitle("User can't receive a file they already have."))
+		} else {
+			itemAtToken, _ := userlib.DatastoreGet(receivedInfo.RecievedToken)
+			if itemAtToken != nil {
+				return errors.New(strings.ToTitle("User can't receive a file they already have."))
+			}
+		}
 	}
 
 	bytesOfStructAboutInvitation, _ := userlib.DatastoreGet(accessToken)
@@ -1596,6 +1606,15 @@ func (userdata *User) RevokeFile(filename string, targetUsername string) (err er
 	//Remove InvitationInformation struct for target from OwnedFilesToInvitations[filename].
 	tempF := userdata.OwnedFilesToInvitations[filename]
 	//userlib.DebugMsg("%v", tempF)
+
+	//Desecrate the target's invitation
+	userlib.DatastoreDelete(tempF[indexOfTargetInvitation].SentToken)
+
+	/*
+	datastoreRet, _ := userlib.DatastoreGet(tempF[indexOfTargetInvitation].SentToken)
+	userlib.DebugMsg("%v", datastoreRet==nil)
+	*/
+
 	tempF[indexOfTargetInvitation] = tempF[len(tempF) - 1]
 	tempF[len(tempF) - 1] = InvitationInformation{uuid.Nil, []byte(""), ""}
 	//userlib.DebugMsg("%v", tempF)

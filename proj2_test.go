@@ -1050,6 +1050,7 @@ func TestReceiveCorruptInvitation(t *testing.T) {
 
 	var accessToken uuid.UUID
 
+	//Writes to user that's sharing, invitation, struct for invitation
 	accessToken, err = u.ShareFile("file1", "bob")
 	if err != nil {
 		t.Error("Failed to share the a file", err)
@@ -1066,10 +1067,10 @@ func TestReceiveCorruptInvitation(t *testing.T) {
 
 	for _, changedElem := range changedElems {
 		currValue, _ := userlib.DatastoreGet(changedElem)
-		userlib.DatastoreSet(changedElem, []byte("garbage"))
+		userlib.DatastoreSet(changedElem, []byte("garbage")) //here corrupt user that's sharing, invitation, struct for invitation
 		err = u2.ReceiveFile("file1", "alice", accessToken)
 		if err == nil {
-			//Sharer is corrupted and doesn't detect since checks recipient
+			//Sharer is corrupted and doesn't detect since its only checks recipient
 			t.Error("Invitation corrupted, should error", err, changedElems, changedElem)
 			return
 		}
@@ -1085,6 +1086,223 @@ func TestReceiveCorruptInvitation(t *testing.T) {
 			return
 		}
 		userlib.DatastoreSet(changedElem, currValue)
+	}
+}
+
+func TestRevokeErrorBasic(t *testing.T) {
+	clear()
+
+	u1, err := InitUser("alice", "fubar")
+	if err !=  nil {
+		t.Error("error", err)
+		return
+	}
+
+	_, err2 := InitUser("bob", "foobar")
+	if err2 != nil {
+		t.Error("error2", err2)
+		return
+	}
+
+	err = u1.RevokeFile("file1", "bob")
+	if err == nil {
+		t.Error("should error since can't revoke a file it doesn't own", err)
+		return
+	}
+
+	err = u1.StoreFile("file1", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	err = u1.RevokeFile("file1", "bob")
+	if err == nil {
+		t.Error("Should error since bob never received the file", err)
+	}
+}
+
+func TestShareRevokeShare(t *testing.T) {
+	clear()
+
+	u1, err := InitUser("alice", "fubar")
+	if err !=  nil {
+		t.Error("error", err)
+		return
+	}
+
+	u2, err2 := InitUser("bob", "foobar")
+	if err2 != nil {
+		t.Error("error2", err2)
+		return
+	}
+
+	u3, errorr := InitUser("carol", "foobaar")
+	if errorr !=  nil {
+		t.Error("error", err)
+		return
+	}
+
+
+	err = u1.StoreFile("file1", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	var accessToken uuid.UUID
+	accessToken, err = u1.ShareFile("file1", "bob")
+	if err != nil {
+		t.Error("couldn't share file", err)
+		return
+	}
+
+	err = u2.ReceiveFile("file_from_alice", "alice", accessToken)
+	if err != nil {
+		t.Error("could'nt receive file", err)
+		return
+	}
+
+	err = u2.ReceiveFile("file_from_alice", "alice", accessToken)
+	if err == nil {
+		t.Error("already received file, don't need to receive again", err)
+		return
+	}
+
+	accessToken2, _ := u2.ShareFile("file_from_alice", "carol")
+
+	err = u3.ReceiveFile("file_from_alice", "bob", accessToken2)
+	if err != nil {
+		t.Error("Carol should be able to receive file", err, accessToken2)
+		return
+	}
+
+	err = u3.AppendFile("file_from_alice", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	file_data, _ := u3.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+		t.Error("carol should now be able to load file")
+		return
+	}
+
+	err = u1.RevokeFile("file1", "bob")
+	if err != nil {
+		t.Error("couldn't revoke file", err)
+		return
+	}
+
+	file_data, err = u2.LoadFile("file_from_alice")
+	if err == nil {
+		t.Error("Bob shouldn't be able to load file")
+		return
+	}
+
+	file_data, err = u3.LoadFile("file_from_alice")
+	if err == nil {
+		t.Error("Carol shouldn't be able to load file")
+		return
+	}
+
+	err = u2.ReceiveFile("file_from_alice", "alice", accessToken)
+	if err == nil {
+		t.Error("Bob shouldn't be able to receive file")
+		return
+	}
+
+	err = u3.ReceiveFile("file_from_alice", "bob", accessToken2)
+	if err == nil {
+		t.Error("Carol shouldn't be able to receive file")
+		return
+	}
+
+	err = u1.StoreFile("file1", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	accessToken, err = u1.ShareFile("file1", "bob")
+	if err != nil {
+		t.Error("couldn't share file", err)
+		return
+	}
+
+	err = u2.ReceiveFile("file_from_alice", "alice", accessToken)
+	if err != nil {
+		t.Error("could'nt receive file", err)
+		return
+	}
+
+	file_data, _ = u2.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("content"), file_data) {
+		t.Error("bob should now be able to load file")
+		return
+	}
+
+	file_data, _ = u1.LoadFile("file1")
+	if !reflect.DeepEqual([]byte("content"), file_data) {
+		t.Error("alice should be able to load file")
+		return
+	}
+
+	err = u2.AppendFile("file_from_alice", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	file_data, _ = u2.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+		t.Error("bob should now be able to load file")
+		return
+	}
+
+	err = u2.StoreFile("file_from_alice", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	file_data, _ = u2.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("content"), file_data) {
+		t.Error("bob should now be able to load file")
+		return
+	}
+
+	accessToken, _ = u2.ShareFile("file_from_alice", "carol")
+
+	err = u3.ReceiveFile("file_from_alice", "bob", accessToken)
+	if err != nil {
+		t.Error("Carol should be able to receive file", err, accessToken)
+		return
+	}
+
+	err = u3.AppendFile("file_from_alice", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	file_data, _ = u3.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+		t.Error("carol should now be able to load file")
+		return
+	}
+
+	file_data, _ = u2.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+		t.Error("bob should now be able to load file")
+		return
+	}
+
+	file_data, _ = u1.LoadFile("file1")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+		t.Error("alice should now be able to load file")
+		return
 	}
 }
 
@@ -1197,12 +1415,188 @@ func TestSpecRevoke(t *testing.T) {
 	}
 }
 
+func TestShareRevokeTree(t *testing.T) {
+	clear()
+
+	u1, err := InitUser("alice", "fubar")
+	if err !=  nil {
+		t.Error("error", err)
+		return
+	}
+
+	u2, err2 := InitUser("bob", "foobar")
+	if err2 != nil {
+		t.Error("error2", err2)
+		return
+	}
+
+	u3, errorr := InitUser("carol", "foobaar")
+	if errorr !=  nil {
+		t.Error("error", err)
+		return
+	}
+
+
+	err = u1.StoreFile("file1", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	var accessToken uuid.UUID
+	accessToken, err = u1.ShareFile("file1", "bob")
+	if err != nil {
+		t.Error("couldn't share file", err)
+		return
+	}
+
+	err = u2.ReceiveFile("file_from_alice", "alice", accessToken)
+	if err != nil {
+		t.Error("could'nt receive file", err)
+		return
+	}
+
+	accessToken2, _ := u2.ShareFile("file_from_alice", "carol")
+
+	err = u3.ReceiveFile("file_from_alice", "bob", accessToken2)
+	if err != nil {
+		t.Error("Carol should be able to receive file", err, accessToken2)
+		return
+	}
+
+	err = u3.AppendFile("file_from_alice", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	file_data, _ := u3.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+		t.Error("carol should now be able to load file")
+		return
+	}
+
+	err = u1.RevokeFile("file1", "bob")
+	if err != nil {
+		t.Error("couldn't revoke file", err)
+		return
+	}
+
+	file_data, err = u2.LoadFile("file_from_alice")
+	if err == nil {
+		t.Error("Bob shouldn't be able to load file")
+		return
+	}
+
+	file_data, err = u3.LoadFile("file_from_alice")
+	if err == nil {
+		t.Error("Carol shouldn't be able to load file")
+		return
+	}
+
+	err = u2.ReceiveFile("file_from_alice", "alice", accessToken)
+	if err == nil {
+		t.Error("Bob shouldn't be able to receive file")
+		return
+	}
+
+	err = u3.ReceiveFile("file_from_alice", "bob", accessToken2)
+	if err == nil {
+		t.Error("Carol shouldn't be able to receive file")
+		return
+	}
+
+	err = u1.StoreFile("file1", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	accessToken, err = u1.ShareFile("file1", "bob")
+	if err != nil {
+		t.Error("couldn't share file", err)
+		return
+	}
+
+	err = u2.ReceiveFile("file_from_alice", "alice", accessToken)
+	if err != nil {
+		t.Error("could'nt receive file", err)
+		return
+	}
+
+	file_data, _ = u2.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("content"), file_data) {
+		t.Error("bob should now be able to load file")
+		return
+	}
+
+	file_data, _ = u1.LoadFile("file1")
+	if !reflect.DeepEqual([]byte("content"), file_data) {
+		t.Error("alice should be able to load file")
+		return
+	}
+
+	err = u2.AppendFile("file_from_alice", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	file_data, _ = u2.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+		t.Error("bob should now be able to load file")
+		return
+	}
+
+	err = u2.StoreFile("file_from_alice", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	file_data, _ = u2.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("content"), file_data) {
+		t.Error("bob should now be able to load file")
+		return
+	}
+
+	accessToken, _ = u2.ShareFile("file_from_alice", "carol")
+
+	err = u3.ReceiveFile("file_from_alice", "bob", accessToken)
+	if err != nil {
+		t.Error("Carol should be able to receive file", err, accessToken)
+		return
+	}
+
+	err = u3.AppendFile("file_from_alice", []byte("content"))
+	if err != nil {
+		t.Error("error", err)
+		return
+	}
+
+	file_data, _ = u3.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+		t.Error("carol should now be able to load file")
+		return
+	}
+
+	file_data, _ = u2.LoadFile("file_from_alice")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+		t.Error("bob should now be able to load file")
+		return
+	}
+
+	file_data, _ = u1.LoadFile("file1")
+	if !reflect.DeepEqual([]byte("contentcontent"), file_data) {
+		t.Error("alice should now be able to load file")
+		return
+	}
+}
+
 //TODO: 
-//test all error checks & corruptions
-//revoke error check/corruption
 /*test all: do the file moving forcing you to check hashmap for updated uuid and keys
 test store/load/append: not owner, check invitations, corrupt invitations
-//test SHARE, REVOKE + other things (including call receive after revocation), SHARE
+//test SHARE, REVOKE + other things (including call receive after revocation), SHARE // FIX THIS RECEIVEFILE // DO RECEIVE FILE TWICE
 //TEST SHOE EXAMPLE TEST POINTER CLEARING
 //call methods on non-existent users (userbob for share, receive, revoke)
 //call receive file even before shared
